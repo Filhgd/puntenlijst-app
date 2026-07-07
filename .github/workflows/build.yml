@@ -1,8 +1,6 @@
 name: Build apps (macOS + Windows)
 
-# Wordt gestart:
-#  - handmatig via de knop "Run workflow" op GitHub (tab Actions)
-#  - automatisch bij het aanmaken van een tag die begint met "v" (bv. v1.0)
+# Handmatig starten via Actions -> Run workflow, of automatisch bij een tag "v*".
 on:
   workflow_dispatch:
   push:
@@ -19,6 +17,9 @@ jobs:
           - os: windows-latest
             name: windows
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
 
     steps:
       - uses: actions/checkout@v4
@@ -27,14 +28,29 @@ jobs:
         with:
           python-version: "3.12"
 
+      # De bestanden mogen in de hoofdmap staan OF in een submap
+      # (bv. PuntenlijstApp/): deze stap zoekt ze automatisch.
+      - name: Zoek de app-bestanden
+        run: |
+          FOUND=$(find . -maxdepth 3 -name requirements.txt -not -path "*/.*" | head -1)
+          if [ -z "$FOUND" ]; then
+            echo "FOUT: requirements.txt nergens gevonden in de repository."
+            exit 1
+          fi
+          SRC=$(dirname "$FOUND")
+          echo "App-bestanden gevonden in: $SRC"
+          echo "SRC=$SRC" >> "$GITHUB_ENV"
+
       - name: Install dependencies
         run: |
+          cd "$SRC"
           python -m pip install --upgrade pip
           pip install -r requirements.txt pyinstaller
 
       - name: Build (macOS)
         if: matrix.name == 'mac'
         run: |
+          cd "$SRC"
           pyinstaller --noconfirm --windowed --name "Puntenlijst" \
             --collect-all tkinterdnd2 \
             --collect-all pdfplumber \
@@ -44,6 +60,7 @@ jobs:
       - name: Build (Windows)
         if: matrix.name == 'windows'
         run: |
+          cd "$SRC"
           pyinstaller --noconfirm --onefile --windowed --name "Puntenlijst" --collect-all tkinterdnd2 --collect-all pdfplumber puntenlijst_gui.py
 
       - name: Upload artifact (macOS)
@@ -51,25 +68,23 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Puntenlijst-mac
-          path: dist/Puntenlijst-mac.zip
+          path: ${{ env.SRC }}/dist/Puntenlijst-mac.zip
 
       - name: Upload artifact (Windows)
         if: matrix.name == 'windows'
         uses: actions/upload-artifact@v4
         with:
           name: Puntenlijst-windows
-          path: dist/Puntenlijst.exe
+          path: ${{ env.SRC }}/dist/Puntenlijst.exe
 
-      # Bij een tag (bv. v1.0) worden de bestanden ook als "Release" gepubliceerd,
-      # zodat collega's ze zonder GitHub-account kunnen downloaden.
       - name: Release (macOS)
         if: startsWith(github.ref, 'refs/tags/') && matrix.name == 'mac'
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/Puntenlijst-mac.zip
+          files: ${{ env.SRC }}/dist/Puntenlijst-mac.zip
 
       - name: Release (Windows)
         if: startsWith(github.ref, 'refs/tags/') && matrix.name == 'windows'
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/Puntenlijst.exe
+          files: ${{ env.SRC }}/dist/Puntenlijst.exe
