@@ -58,11 +58,16 @@ jobs:
           fi
           echo "SRC=$SRC" >> "$GITHUB_ENV"
 
+      # pdfplumber wordt bewust ZONDER zijn optionele afhankelijkheden
+      # geïnstalleerd (pillow en pypdfium2 zijn alleen nodig om PDF's als
+      # afbeelding te renderen). Wat niet geïnstalleerd is, belandt ook
+      # niet in de app: dat scheelt ~20 MB.
       - name: Install dependencies
         run: |
           cd "$SRC"
           python -m pip install --upgrade pip
-          pip install -r requirements.txt pyinstaller
+          pip install --no-deps pdfplumber
+          pip install "pdfminer.six" openpyxl tkinterdnd2 pyinstaller
 
       - name: Build (macOS)
         if: matrix.name == 'mac'
