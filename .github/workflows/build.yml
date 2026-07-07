@@ -58,11 +58,19 @@ jobs:
           fi
           echo "SRC=$SRC" >> "$GITHUB_ENV"
 
+      # pdfplumber wordt bewust ZONDER zijn optionele afhankelijkheden
+      # geïnstalleerd (pillow en pypdfium2 zijn alleen nodig om PDF's als
+      # afbeelding te renderen). Wat niet geïnstalleerd is, belandt ook
+      # niet in de app: dat scheelt ~20 MB.
       - name: Install dependencies
         run: |
           cd "$SRC"
           python -m pip install --upgrade pip
-          pip install -r requirements.txt pyinstaller
+          pip install --no-deps pdfplumber
+          pip install "pdfminer.six" openpyxl tkinterdnd2 pyinstaller
+          # Zelfcontrole: de build faalt meteen als de zware, onnodige
+          # pakketten toch aanwezig zijn (dan draait een oude workflow).
+          python -c "import importlib.util, sys; bad = [m for m in ('PIL', 'pypdfium2') if importlib.util.find_spec(m)]; sys.exit('FOUT: onnodige pakketten aanwezig: ' + ', '.join(bad)) if bad else print('Slanke omgeving OK: geen Pillow/pypdfium2')"
 
       - name: Build (macOS)
         if: matrix.name == 'mac'
@@ -75,7 +83,9 @@ jobs:
           pyinstaller --noconfirm --windowed --name "Puntenlijst" \
             $EXTRA \
             --collect-all tkinterdnd2 \
-            --collect-all pdfplumber \
+            --exclude-module PIL \
+            --exclude-module pypdfium2 \
+            --exclude-module pypdfium2_raw \
             puntenlijst_gui.py
           cd dist && ditto -c -k --keepParent "Puntenlijst.app" "Puntenlijst-mac-v$VERSION.zip"
 
@@ -87,7 +97,7 @@ jobs:
           EXTRA=""
           if [ -f assets/icon.ico ]; then EXTRA="--icon assets/icon.ico"; fi
           if [ -d assets ]; then EXTRA="$EXTRA --add-data assets;assets"; fi
-          pyinstaller --noconfirm --onefile --windowed --name "Puntenlijst" $EXTRA --collect-all tkinterdnd2 --collect-all pdfplumber puntenlijst_gui.py
+          pyinstaller --noconfirm --onefile --windowed --name "Puntenlijst" $EXTRA --collect-all tkinterdnd2 --exclude-module PIL --exclude-module pypdfium2 --exclude-module pypdfium2_raw puntenlijst_gui.py
           mv dist/Puntenlijst.exe "dist/Puntenlijst-v$VERSION.exe"
 
       - name: Upload artifact (macOS)
