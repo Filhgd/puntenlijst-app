@@ -30,15 +30,32 @@ jobs:
 
       # De bestanden mogen in de hoofdmap staan OF in een submap
       # (bv. PuntenlijstApp/): deze stap zoekt ze automatisch.
+      # De assets-map (logo + iconen) wordt desnoods elders in de repo
+      # gezocht en naar de juiste plek gekopieerd.
       - name: Zoek de app-bestanden
         run: |
-          FOUND=$(find . -maxdepth 3 -name requirements.txt -not -path "*/.*" | head -1)
-          if [ -z "$FOUND" ]; then
-            echo "FOUT: requirements.txt nergens gevonden in de repository."
+          GUIFILE=$(find . -maxdepth 4 -name puntenlijst_gui.py -not -path "*/.*" | head -1)
+          if [ -z "$GUIFILE" ]; then
+            echo "FOUT: puntenlijst_gui.py nergens gevonden in de repository."
             exit 1
           fi
-          SRC=$(dirname "$FOUND")
+          SRC=$(dirname "$GUIFILE")
           echo "App-bestanden gevonden in: $SRC"
+          if [ ! -d "$SRC/assets" ]; then
+            ASSETS=$(find . -maxdepth 4 -type d -iname assets -not -path "*/.*" | head -1)
+            if [ -n "$ASSETS" ]; then
+              echo "assets-map gevonden op $ASSETS -> kopiëren naar $SRC/assets"
+              cp -R "$ASSETS" "$SRC/assets"
+            else
+              echo "WAARSCHUWING: geen assets-map gevonden; app wordt gebouwd zonder logo en icoon."
+            fi
+          fi
+          echo "--- Inhoud van $SRC: ---"
+          ls -la "$SRC"
+          if [ -d "$SRC/assets" ]; then
+            echo "--- Inhoud van $SRC/assets: ---"
+            ls -la "$SRC/assets"
+          fi
           echo "SRC=$SRC" >> "$GITHUB_ENV"
 
       - name: Install dependencies
@@ -58,7 +75,9 @@ jobs:
           pyinstaller --noconfirm --windowed --name "Puntenlijst" \
             $EXTRA \
             --collect-all tkinterdnd2 \
-            --collect-all pdfplumber \
+            --exclude-module PIL \
+            --exclude-module pypdfium2 \
+            --exclude-module pypdfium2_raw \
             puntenlijst_gui.py
           cd dist && ditto -c -k --keepParent "Puntenlijst.app" "Puntenlijst-mac-v$VERSION.zip"
 
@@ -70,7 +89,7 @@ jobs:
           EXTRA=""
           if [ -f assets/icon.ico ]; then EXTRA="--icon assets/icon.ico"; fi
           if [ -d assets ]; then EXTRA="$EXTRA --add-data assets;assets"; fi
-          pyinstaller --noconfirm --onefile --windowed --name "Puntenlijst" $EXTRA --collect-all tkinterdnd2 --collect-all pdfplumber puntenlijst_gui.py
+          pyinstaller --noconfirm --onefile --windowed --name "Puntenlijst" $EXTRA --collect-all tkinterdnd2 --exclude-module PIL --exclude-module pypdfium2 --exclude-module pypdfium2_raw puntenlijst_gui.py
           mv dist/Puntenlijst.exe "dist/Puntenlijst-v$VERSION.exe"
 
       - name: Upload artifact (macOS)
