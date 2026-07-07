@@ -68,6 +68,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install --no-deps pdfplumber
           pip install "pdfminer.six" openpyxl tkinterdnd2 pyinstaller
+          # Zelfcontrole: de build faalt meteen als de zware, onnodige
+          # pakketten toch aanwezig zijn (dan draait een oude workflow).
+          python -c "import importlib.util, sys; bad = [m for m in ('PIL', 'pypdfium2') if importlib.util.find_spec(m)]; sys.exit('FOUT: onnodige pakketten aanwezig: ' + ', '.join(bad)) if bad else print('Slanke omgeving OK: geen Pillow/pypdfium2')"
 
       - name: Build (macOS)
         if: matrix.name == 'mac'
