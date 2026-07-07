@@ -17,7 +17,12 @@ bibliotheek werkt de app ook, maar dan enkel met de knoppen.
 import os
 import re
 import sys
+import math
+import wave
 import queue
+import struct
+import random
+import tempfile
 import threading
 import subprocess
 import traceback
@@ -84,6 +89,138 @@ def reveal_in_folder(path):
             subprocess.Popen(["explorer", "/select,", os.path.normpath(path)])
         else:
             subprocess.Popen(["xdg-open", os.path.dirname(path)])
+    except Exception:
+        pass
+
+
+# ---------------------------------------------------------------------------
+# Geluid: korte retro (MIDI-achtige) deuntjes, ter plekke gesynthetiseerd.
+# Geen extra bibliotheken nodig; afspelen via afplay (Mac) / winsound (Windows).
+# ---------------------------------------------------------------------------
+SUCCESS_NOTES = [(523, 0.11), (659, 0.11), (784, 0.11), (1047, 0.32)]  # C-E-G-C
+ERROR_NOTES = [(311, 0.16), (233, 0.16), (155, 0.42)]                  # dalend
+
+
+def _make_wav(path, notes):
+    """Schrijf een klein WAV-bestand met een blokgolf-melodietje (chiptune)."""
+    rate = 22050
+    frames = bytearray()
+    for freq, dur in notes:
+        n = int(rate * dur)
+        for i in range(n):
+            t = i / rate
+            v = 1.0 if math.sin(2 * math.pi * freq * t) >= 0 else -1.0
+            attack = min(1.0, i / (0.02 * n + 1))          # zachte start
+            release = min(1.0, (n - i) / (0.35 * n + 1))   # uitsterven
+            frames += struct.pack("<h", int(v * attack * release * 11000))
+    with wave.open(path, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        w.writeframes(bytes(frames))
+
+
+def play_sound(kind):
+    """Speel het succes- of foutdeuntje af (asynchroon, faalt stil)."""
+    try:
+        path = os.path.join(tempfile.gettempdir(), f"puntenlijst_{kind}.wav")
+        if not os.path.exists(path):
+            _make_wav(path, SUCCESS_NOTES if kind == "ok" else ERROR_NOTES)
+        if sys.platform == "darwin":
+            subprocess.Popen(["afplay", path])
+        elif os.name == "nt":
+            import winsound
+            winsound.PlaySound(path, winsound.SND_FILENAME | winsound.SND_ASYNC)
+        else:
+            subprocess.Popen(["aplay", "-q", path])
+    except Exception:
+        pass
+
+
+# ---------------------------------------------------------------------------
+# Vuurwerk: overlay-animatie op een donker canvas over het hele venster.
+# ---------------------------------------------------------------------------
+class Fireworks:
+    COLORS = ["#FFD700", "#FF6B6B", "#4ECDC4", "#95E1D3", "#F38181",
+              "#AA96DA", "#FCE38A", "#7EC8E3", "#FFFFFF"]
+    DURATION_MS = 4500
+
+    def __init__(self, root, title, subtitle):
+        self.root = root
+        self.alive = True
+        self.parts = []
+        self.canvas = tk.Canvas(root, bg="#1B1B2F", highlightthickness=0)
+        self.canvas.place(x=0, y=0, relwidth=1, relheight=1)
+        self.canvas.bind("<Button-1>", lambda e: self.stop())
+        root.update_idletasks()
+        self.w = max(root.winfo_width(), 400)
+        self.h = max(root.winfo_height(), 300)
+        self.canvas.create_text(self.w / 2, self.h * 0.42, text=title,
+                                font=("Helvetica", 30, "bold"), fill="#FFD700")
+        self.canvas.create_text(self.w / 2, self.h * 0.53, text=subtitle,
+                                font=("Helvetica", 14), fill="white",
+                                justify="center")
+        self.canvas.create_text(self.w / 2, self.h * 0.94,
+                                text="(klik om te sluiten)",
+                                font=("Helvetica", 10), fill="#777799")
+        for delay in (0, 350, 700, 1100, 1500, 1900, 2400):
+            root.after(delay, self._burst)
+        root.after(self.DURATION_MS, self.stop)
+        self._tick()
+
+    def _burst(self):
+        if not self.alive:
+            return
+        cx = random.uniform(0.15, 0.85) * self.w
+        cy = random.uniform(0.10, 0.45) * self.h
+        color = random.choice(self.COLORS)
+        for _ in range(26):
+            angle = random.uniform(0, 2 * math.pi)
+            speed = random.uniform(1.5, 5.5)
+            item = self.canvas.create_oval(cx - 2, cy - 2, cx + 2, cy + 2,
+                                           fill=color, outline="")
+            self.parts.append({
+                "id": item,
+                "vx": math.cos(angle) * speed,
+                "vy": math.sin(angle) * speed,
+                "life": random.randint(22, 40),
+            })
+
+    def _tick(self):
+        if not self.alive:
+            return
+        dead = []
+        for p in self.parts:
+            p["vy"] += 0.12                      # zwaartekracht
+            self.canvas.move(p["id"], p["vx"], p["vy"])
+            p["life"] -= 1
+            if p["life"] == 8:
+                self.canvas.itemconfigure(p["id"], fill="#555577")
+            if p["life"] <= 0:
+                self.canvas.delete(p["id"])
+                dead.append(p)
+        for p in dead:
+            self.parts.remove(p)
+        self.root.after(30, self._tick)
+
+    def stop(self):
+        if self.alive:
+            self.alive = False
+            self.canvas.destroy()
+
+
+def shake_window(root):
+    """Schud het venster kort heen en weer (fout-effect)."""
+    try:
+        root.update_idletasks()
+        x, y = root.winfo_x(), root.winfo_y()
+        seq = [14, -14, 11, -11, 8, -8, 5, -5, 2, -2, 0]
+
+        def step(i=0):
+            if i < len(seq):
+                root.geometry(f"+{x + seq[i]}+{y}")
+                root.after(35, step, i + 1)
+        step()
     except Exception:
         pass
 
@@ -282,19 +419,29 @@ class App:
                       f"{result['n_bad']} te controleren (zie tabblad 'Controle')"),
                 fg=WARN_COLOR,
             )
+            subtitle = (f"{result['n_students']} studenten verwerkt\n"
+                        f"Let op: {result['n_bad']} te controleren "
+                        f"(tabblad 'Controle')")
         else:
             self.status.configure(
                 text=(f"Klaar: {result['n_students']} studenten, "
                       "alle controles OK"),
                 fg=OK_COLOR,
             )
+            subtitle = (f"{result['n_students']} studenten verwerkt - "
+                        "alle controles OK")
+        play_sound("ok")
+        Fireworks(self.root, "GELUKT!", subtitle)
 
     def _on_error(self, msg):
         self.busy = False
         self.status.configure(text="Er ging iets mis.", fg=ERR_COLOR)
         self.log("")
         self.log(f"FOUT: {msg}")
-        messagebox.showerror(APP_TITLE, f"Er ging iets mis:\n\n{msg}")
+        play_sound("fout")
+        shake_window(self.root)
+        self.root.after(450, lambda: messagebox.showerror(
+            APP_TITLE, f"Er ging iets mis:\n\n{msg}"))
 
     # ------------------------------------------------------------- output
     def open_result(self):
