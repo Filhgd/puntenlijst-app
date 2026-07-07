@@ -1,0 +1,75 @@
+name: Build apps (macOS + Windows)
+
+# Wordt gestart:
+#  - handmatig via de knop "Run workflow" op GitHub (tab Actions)
+#  - automatisch bij het aanmaken van een tag die begint met "v" (bv. v1.0)
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            name: mac
+          - os: windows-latest
+            name: windows
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Build (macOS)
+        if: matrix.name == 'mac'
+        run: |
+          pyinstaller --noconfirm --windowed --name "Puntenlijst" \
+            --collect-all tkinterdnd2 \
+            --collect-all pdfplumber \
+            puntenlijst_gui.py
+          cd dist && ditto -c -k --keepParent "Puntenlijst.app" "Puntenlijst-mac.zip"
+
+      - name: Build (Windows)
+        if: matrix.name == 'windows'
+        run: |
+          pyinstaller --noconfirm --onefile --windowed --name "Puntenlijst" --collect-all tkinterdnd2 --collect-all pdfplumber puntenlijst_gui.py
+
+      - name: Upload artifact (macOS)
+        if: matrix.name == 'mac'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Puntenlijst-mac
+          path: dist/Puntenlijst-mac.zip
+
+      - name: Upload artifact (Windows)
+        if: matrix.name == 'windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Puntenlijst-windows
+          path: dist/Puntenlijst.exe
+
+      # Bij een tag (bv. v1.0) worden de bestanden ook als "Release" gepubliceerd,
+      # zodat collega's ze zonder GitHub-account kunnen downloaden.
+      - name: Release (macOS)
+        if: startsWith(github.ref, 'refs/tags/') && matrix.name == 'mac'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/Puntenlijst-mac.zip
+
+      - name: Release (Windows)
+        if: startsWith(github.ref, 'refs/tags/') && matrix.name == 'windows'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/Puntenlijst.exe
