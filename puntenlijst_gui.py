@@ -26,6 +26,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext
 
 import puntenlijst_core as core
+from version import __version__, APP_NAME, DEVELOPER, DEVELOPER_EMAIL, ORGANISATION
 
 # Drag & drop is optioneel: zonder tkinterdnd2 blijven de knoppen werken.
 try:
@@ -35,7 +36,13 @@ except Exception:
     HAS_DND = False
 
 
-APP_TITLE = "Puntenlijst-generator"
+APP_TITLE = APP_NAME
+
+
+def resource_path(rel):
+    """Pad naar een meegeleverd bestand, ook binnen een PyInstaller-app."""
+    base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base, rel)
 BG = "#F4F6FA"
 ACCENT = "#305496"
 DROP_BG = "#E8EDF7"
@@ -88,16 +95,26 @@ class App:
         self.result_path = None
         self.msg_queue = queue.Queue()
 
-        root.title(APP_TITLE)
-        root.geometry("720x560")
-        root.minsize(560, 460)
+        root.title(f"{APP_TITLE} v{__version__}")
+        root.geometry("720x620")
+        root.minsize(560, 500)
         root.configure(bg=BG)
+
+        # ---- logo faculteit (indien meegeleverd) ----
+        self.logo_img = None
+        try:
+            logo_file = resource_path(os.path.join("assets", "logo_faculteit.png"))
+            if os.path.exists(logo_file):
+                self.logo_img = tk.PhotoImage(file=logo_file)
+                tk.Label(root, image=self.logo_img, bg=BG).pack(pady=(14, 0))
+        except Exception:
+            self.logo_img = None
 
         # ---- kop ----
         tk.Label(
             root, text=APP_TITLE, font=("Helvetica", 20, "bold"),
             bg=BG, fg=ACCENT,
-        ).pack(pady=(16, 2))
+        ).pack(pady=(10 if self.logo_img else 16, 2))
         tk.Label(
             root,
             text="Maakt één Excel met alle examenpunten uit de deliberatie-PDF's",
@@ -157,7 +174,15 @@ class App:
             root, font=("Courier", 11), height=12, state="disabled",
             bg="white", relief="sunken", bd=1,
         )
-        self.log_box.pack(fill="both", expand=True, padx=24, pady=(6, 16))
+        self.log_box.pack(fill="both", expand=True, padx=24, pady=(6, 4))
+
+        # ---- voettekst: versie en ontwikkelaar ----
+        tk.Label(
+            root,
+            text=(f"v{__version__}  ·  Ontwikkeld door {DEVELOPER} "
+                  f"({DEVELOPER_EMAIL})\n{ORGANISATION}"),
+            font=("Helvetica", 10), bg=BG, fg="#888888", justify="center",
+        ).pack(pady=(0, 10))
 
         self.root.after(100, self._poll_queue)
 
