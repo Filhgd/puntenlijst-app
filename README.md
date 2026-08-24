@@ -1,4 +1,4 @@
-# Puntenlijst-generator - handleiding voor gebruikers
+# Puntenlijst-generator - README
 
 **Universiteit Antwerpen - Faculteit Geneeskunde en Gezondheidswetenschappen**
 
@@ -12,12 +12,10 @@ Ontwikkeld door Filip Haegdorens (filip.haegdorens@uantwerpen.be).
 
 ## 1. Downloaden
 
-Je krijgt van Filip een van deze bestanden:
+- **Mac (Apple Silicon):** https://github.com/Filhgd/puntenlijst-app/releases/latest/download/Puntenlijst-mac.zip
+- **Windows:** https://github.com/Filhgd/puntenlijst-app/releases/latest/download/Puntenlijst.exe
 
-| Jouw computer | Bestand |
-|---|---|
-| Mac | `Puntenlijst-mac-v1.0.0.zip` |
-| Windows | `Puntenlijst-v1.0.0.exe` |
+Alle versies: https://github.com/Filhgd/puntenlijst-app/releases
 
 Er is niets te installeren: het is één bestand dat je gewoon opent.
 Bewaar het bv. op je Bureaublad of in je Documenten.
