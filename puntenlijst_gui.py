@@ -31,7 +31,8 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext
 
 import puntenlijst_core as core
-from version import __version__, APP_NAME, DEVELOPER, DEVELOPER_EMAIL, ORGANISATION
+from version import (__version__, APP_NAME, DEVELOPER, DEVELOPER_EMAIL,
+                     ORGANISATION, history_as_text)
 
 # Drag & drop is optioneel: zonder tkinterdnd2 blijven de knoppen werken.
 try:
@@ -300,6 +301,11 @@ class App:
             command=self.reveal_result, padx=12, pady=4, state="disabled",
         )
         self.btn_reveal.pack(side="left", padx=6)
+        self.btn_info = tk.Button(
+            btns, text="Info", font=("Helvetica", 12),
+            command=self.show_history, padx=10, pady=4,
+        )
+        self.btn_info.pack(side="left", padx=6)
 
         # ---- statusregel ----
         self.status = tk.Label(root, text="Klaar om te starten.",
@@ -413,23 +419,23 @@ class App:
         self.result_path = result["out_path"]
         self.btn_open.configure(state="normal")
         self.btn_reveal.configure(state="normal")
+        n_zit2 = result.get("n_zit2", 0)
+        extra = f"\nwaarvan {n_zit2} uit de 2de zit-rapporten" if n_zit2 else ""
         if result["n_bad"]:
             self.status.configure(
                 text=(f"Klaar: {result['n_students']} studenten - "
                       f"{result['n_bad']} te controleren (zie tabblad 'Controle')"),
                 fg=WARN_COLOR,
             )
-            subtitle = (f"{result['n_students']} studenten verwerkt\n"
+            subtitle = (f"{result['n_students']} studenten verwerkt{extra}\n"
                         f"Let op: {result['n_bad']} te controleren "
                         f"(tabblad 'Controle')")
         else:
             self.status.configure(
-                text=(f"Klaar: {result['n_students']} studenten, "
-                      "alle controles OK"),
+                text=f"Klaar: {result['n_students']} studenten verwerkt",
                 fg=OK_COLOR,
             )
-            subtitle = (f"{result['n_students']} studenten verwerkt - "
-                        "alle controles OK")
+            subtitle = f"{result['n_students']} studenten verwerkt{extra}"
         play_sound("ok")
         Fireworks(self.root, "GELUKT!", subtitle)
 
@@ -442,6 +448,39 @@ class App:
         shake_window(self.root)
         self.root.after(450, lambda: messagebox.showerror(
             APP_TITLE, f"Er ging iets mis:\n\n{msg}"))
+
+    # --------------------------------------------------- info / geschiedenis
+    def show_history(self):
+        """Toon een venster met de versiegeschiedenis en de contactgegevens."""
+        win = tk.Toplevel(self.root)
+        win.title(f"Over {APP_TITLE}")
+        win.configure(bg=BG)
+        win.geometry("640x520")
+        win.minsize(480, 380)
+        win.transient(self.root)
+
+        tk.Label(win, text=APP_TITLE, font=("Helvetica", 18, "bold"),
+                 bg=BG, fg=ACCENT).pack(pady=(16, 0))
+        tk.Label(win, text=f"versie {__version__}", font=("Helvetica", 12),
+                 bg=BG, fg="#555555").pack()
+        tk.Label(win, text=f"{DEVELOPER}  ·  {DEVELOPER_EMAIL}\n{ORGANISATION}",
+                 font=("Helvetica", 10), bg=BG, fg="#777777",
+                 justify="center").pack(pady=(6, 10))
+
+        tk.Label(win, text="Versiegeschiedenis", font=("Helvetica", 13, "bold"),
+                 bg=BG, fg=ACCENT).pack(anchor="w", padx=22)
+
+        box = scrolledtext.ScrolledText(win, font=("Helvetica", 11), wrap="word",
+                                        bg="white", relief="sunken", bd=1)
+        box.pack(fill="both", expand=True, padx=22, pady=(4, 10))
+        box.insert("1.0", history_as_text())
+        box.configure(state="disabled")
+
+        tk.Button(win, text="Sluiten", font=("Helvetica", 12),
+                  command=win.destroy, padx=16, pady=4).pack(pady=(0, 14))
+
+        win.bind("<Escape>", lambda e: win.destroy())
+        win.focus_set()
 
     # ------------------------------------------------------------- output
     def open_result(self):

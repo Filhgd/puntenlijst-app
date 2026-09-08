@@ -263,6 +263,314 @@ def check_student(s):
 
 
 # ---------------------------------------------------------------------------
+# 4a. Deliberatielijsten van de eerste en de tweede zit combineren
+#
+# De kopregel van elke pagina vermeldt om welke zit het gaat, bv:
+#     "DELIBERATIELIJST Deliberatie 2e zit 2025-2026 Sortering: Percentage"
+#
+# De lijst van de tweede zit bevat ALLE vakken van de student met het op dat
+# moment geldende punt, dus ook de vakken die al in de eerste zit geslaagd
+# waren. Daarom wordt de kolom "2e" alleen gevuld wanneer het punt effectief
+# afwijkt van de eerste zit: dat zijn de herkansingen.
+# ---------------------------------------------------------------------------
+ZIT2_RE = re.compile(r"\b(2e|2de|tweede)\s*zit\b", re.IGNORECASE)
+ZIT1_RE = re.compile(r"\b(1e|1ste|eerste)\s*zit\b", re.IGNORECASE)
+
+
+def detect_zit(path):
+    """Geef 1 of 2 terug: welke examenperiode beschrijft deze deliberatielijst."""
+    try:
+        with pdfplumber.open(path) as pdf:
+            if not pdf.pages:
+                return 1
+            text = pdf.pages[0].extract_text() or ""
+    except Exception:
+        return 1
+    if ZIT2_RE.search(text):
+        return 2
+    if ZIT1_RE.search(text):
+        return 1
+    return 1          # geen aanduiding: behandel als eerste zit
+
+
+def merge_zit_students(students, problems):
+    """
+    Voeg studenten uit de eerste- en tweedezitlijsten samen op studentnummer.
+
+    Geeft een lijst samengevoegde studentdicts terug met per vak
+    {"d1","v1","d2","v2"} in de sleutel "grades2".
+    """
+    per_nr = {}
+    for s in students:
+        per_nr.setdefault(s["nr"], []).append(s)
+
+    merged = []
+    for nr, recs in per_nr.items():
+        zit1 = [r for r in recs if r.get("zit", 1) == 1]
+        zit2 = [r for r in recs if r.get("zit", 1) == 2]
+        if len(zit1) > 1 or len(zit2) > 1:
+            problems.append(
+                f"Student {nr} {recs[0]['naam']} komt meer dan één keer voor in "
+                f"dezelfde zit; het laatst gelezen bestand is gebruikt."
+            )
+        r1 = zit1[-1] if zit1 else None
+        r2 = zit2[-1] if zit2 else None
+        laatste = r2 or r1          # meest recente gegevens voor meta/controle
+
+        grades2 = {}
+        for code in set(list((r1 or {"grades": {}})["grades"]) +
+                        list((r2 or {"grades": {}})["grades"])):
+            g1 = r1["grades"].get(code) if r1 else None
+            g2 = r2["grades"].get(code) if r2 else None
+            if g1 and g2:
+                # Alleen tonen als tweede zit wanneer het punt gewijzigd is.
+                if g2[0] != g1[0]:
+                    d1, v1, d2, v2 = g1[0], g1[1], g2[0], g2[1]
+                else:
+                    d1, v1, d2, v2 = g1[0], g1[1], "", None
+            elif g1:
+                d1, v1, d2, v2 = g1[0], g1[1], "", None
+            else:                    # enkel in de tweedezitlijst
+                d1, v1, d2, v2 = "", None, g2[0], g2[1]
+            grades2[code] = {"d1": d1, "v1": v1, "d2": d2, "v2": v2}
+
+        zitten = ("1+2" if (r1 and r2) else "1" if r1 else "2")
+        m = dict(laatste)
+        m["grades2"] = grades2
+        m["zitten"] = zitten
+        m["bron"] = " + ".join(sorted({r["bron"] for r in recs}))
+        merged.append(m)
+    return merged
+
+
+def check_student_merged(s):
+    """Controle op de samengevoegde (eind)toestand van een student."""
+    msgs = []
+    found = len(s["grades2"])
+    fails = 0
+    for g in s["grades2"].values():
+        de, ve = eind_punt(g)
+        if is_deficit(de, ve):
+            fails += 1
+    if s.get("pdf_examens") is not None and found != s["pdf_examens"]:
+        msgs.append(
+            f"aantal vakken gevonden ({found}) ≠ 'Totaal aantal examens' in PDF "
+            f"({s['pdf_examens']})"
+        )
+    if s.get("pdf_tekorten") is not None and fails != s["pdf_tekorten"]:
+        msgs.append(
+            f"aantal tekorten na tweede zit ({fails}) ≠ 'Aantal tekorten' in PDF "
+            f"({s['pdf_tekorten']})"
+        )
+    if not s.get("plancode"):
+        msgs.append("geen opleiding/plan gevonden")
+    return (len(msgs) == 0), msgs
+
+
+# ---------------------------------------------------------------------------
+# 4b. Tweede PDF-type: "Rapport Vaststelling Punten" (niet-diplomajaar)
+#
+# Dit rapport toont per student ALLE vakken met het resultaat van de eerste
+# en (indien van toepassing) de tweede zit:
+#
+#     Opleidingsonderdeel                              SP  1e zit  2de zit
+#     De expert in het evidence based zorgproces ...    5    08      11
+#     De professional als beheerder van kwaliteits...   5    16
+#
+# Er staan in dit rapport geen controlegetallen ("Totaal aantal examens" /
+# "Aantal tekorten"), dus de kruiscontrole van de deliberatielijsten is hier
+# niet mogelijk.
+# ---------------------------------------------------------------------------
+VAST_MARKER = "Rapport Vaststelling Punten"
+
+VAST_PERIODE_RE = re.compile(r"^Periode\s+(?P<periode>\d{4})\s*-\s*(?P<soort>.+?)\s*$")
+VAST_TRACK_RE = re.compile(r"^(?P<naam>.+?)\s*\((?P<contract>[^()]*[Cc]ontract)\)\s*$")
+VAST_STUDENT_RE = re.compile(r"^(?P<naam>.+?)\s*\((?P<nr>\d{8})\)\s*$")
+# Vakregel: naam (mogelijk afgekapt) + studiepunten + punt 1e zit [+ punt 2de zit]
+VAST_COURSE_RE = re.compile(
+    r"^(?P<name>.+?)\s+(?P<sp>\d{1,2})\s+"
+    r"(?P<g1>\d{1,2}|[A-Z]{1,4})"
+    r"(?:\s+(?P<g2>\d{1,2}|[A-Z]{1,4}))?\s*$"
+)
+# Vakcode binnen de (vaak afgekapte) vaknaam, bv "(2022GENVEV; S01)"
+VAST_CODE_RE = re.compile(r"(\d{4}[A-Z]{2,})\s*;")
+
+# Korte richtingslabels voor dit rapport (de namen wijken licht af van de
+# deliberatielijsten, daarom herkenning op trefwoord).
+VAST_TRACK_KEYWORDS = [
+    ("leiderschap", "LGZ - Leiderschap", "Master - Leiderschap in gezondheid en zorg"),
+    ("onderzoeker", "OGZ - Onderzoeker", "Master - Onderzoeker in gezondheid en zorg"),
+    ("verpleegkundig spec", "VES - Verpleegk. spec.", "Master - Verpleegkundig specialist"),
+    ("vroedvrouw", "VRS - Vroedvrouw spec.", "Master - Vroedvrouw specialist"),
+]
+
+
+def is_vaststelling_pdf(path):
+    """True als dit een 'Rapport Vaststelling Punten' is (niet-diplomajaar)."""
+    try:
+        with pdfplumber.open(path) as pdf:
+            if not pdf.pages:
+                return False
+            text = pdf.pages[0].extract_text() or ""
+        return VAST_MARKER.lower() in text.lower()
+    except Exception:
+        return False
+
+
+def _clean_course_name(raw):
+    """Haal een afgekapt staartje zoals '(2022GENVEV; S01)' of '(50' weg."""
+    naam = re.sub(r"\s*\([^)]*\)\s*$", "", raw).strip()   # volledige haakjes
+    naam = re.sub(r"\s*\([^)]*$", "", naam).strip()       # afgekapte haakjes
+    return naam or raw.strip()
+
+
+def match_course_key(raw_name, courses_registry):
+    """
+    Bepaal onder welke sleutel dit vak in de Excel komt.
+
+    Geeft (sleutel, weergavenaam) terug. Wanneer het vak ook in de
+    deliberatielijsten voorkomt, worden dezelfde vakcode en dezelfde
+    (volledige) vaknaam gebruikt, zodat de tabbladen op elkaar aansluiten.
+    """
+    kort = _clean_course_name(raw_name)
+
+    # 1. Vakcode staat in de regel en is bekend uit de deliberatielijsten.
+    m = VAST_CODE_RE.search(raw_name)
+    if m:
+        code = m.group(1)
+        if code in courses_registry:
+            return code, courses_registry[code]["naam"] or kort
+        return code, kort
+
+    # 2. Geen code: zoek een uniek vak in de registry dat met deze
+    #    (afgekapte) naam begint.
+    if kort:
+        laag = kort.lower()
+        treffers = [c for c, reg in courses_registry.items()
+                    if (reg.get("naam") or "").lower().startswith(laag)]
+        if len(treffers) == 1:
+            code = treffers[0]
+            return code, courses_registry[code]["naam"] or kort
+
+    # 3. Onbekend vak: eigen sleutel op basis van de naam.
+    return "~" + kort.lower(), kort
+
+
+def parse_vaststelling_pdf(path, courses_registry, problems):
+    """Lees één 'Vaststelling Punten'-PDF. Geeft een lijst studentdicts terug."""
+    students = []
+    cur = None
+    jaar = "Onbekend"
+    track_naam = ""
+    track_kort = ""
+
+    with pdfplumber.open(path) as pdf:
+        for page in pdf.pages:
+            for line in (page.extract_text() or "").split("\n"):
+                line = line.strip()
+                if not line or "Page " in line or line.startswith("Opleidingsonderdeel"):
+                    continue
+                if VAST_MARKER.lower() in line.lower():
+                    continue
+
+                mp = VAST_PERIODE_RE.match(line)
+                if mp:
+                    soort = mp.group("soort").lower()
+                    if "schakel" in soort or "voorbereiding" in soort:
+                        jaar = "Schakeljaar"
+                    elif "master" in soort:
+                        jaar = "Masterjaar"
+                    continue
+
+                ms = VAST_STUDENT_RE.match(line)
+                if ms:
+                    cur = {
+                        "nr": ms.group("nr"),
+                        "naam": ms.group("naam").strip(),
+                        "status_jaar": jaar,
+                        "track": track_naam or jaar,
+                        "track_short": track_kort or jaar,
+                        "grades": {},        # sleutel -> (punt1, punt2)
+                        "bron": os.path.basename(path),
+                    }
+                    students.append(cur)
+                    continue
+
+                mt = VAST_TRACK_RE.match(line)
+                if mt:
+                    ruw = mt.group("naam").strip()
+                    track_naam, track_kort = ruw, ruw
+                    for sleutel, kort, vol in VAST_TRACK_KEYWORDS:
+                        if sleutel in ruw.lower():
+                            track_naam, track_kort = vol, kort
+                            break
+                    cur = None
+                    continue
+
+                mc = VAST_COURSE_RE.match(line)
+                if mc and cur is not None:
+                    key, naam = match_course_key(mc.group("name"), courses_registry)
+                    d1, v1 = grade_to_value(mc.group("g1"))
+                    if mc.group("g2"):
+                        d2, v2 = grade_to_value(mc.group("g2"))
+                    else:
+                        d2, v2 = "", None
+                    if key in cur["grades"]:
+                        problems.append(
+                            f"{cur['bron']}: student {cur['nr']} {cur['naam']} heeft "
+                            f"vak '{naam}' meer dan één keer; laatste punt gebruikt."
+                        )
+                    cur["grades"][key] = {
+                        "naam": naam, "sp": mc.group("sp"),
+                        "d1": d1, "v1": v1, "d2": d2, "v2": v2,
+                    }
+                    continue
+
+    return students
+
+
+def eind_punt(g):
+    """Geef (weergave, waarde) van het eindresultaat: 2de zit indien aanwezig."""
+    if g["d2"]:
+        return g["d2"], g["v2"]
+    return g["d1"], g["v1"]
+
+
+def consolidate_zit2_keys(students):
+    """
+    Voeg vakken samen die door afkapping onder twee sleutels terechtkwamen.
+
+    Bij de ene student staat de vakcode nog in de regel ("2022GENVEV"), bij de
+    andere is die weggevallen door de kolombreedte. Zonder deze stap zou
+    hetzelfde vak twee kolommen krijgen.
+    """
+    met_code = {}   # sleutel met echte code -> weergavenaam (kleine letters)
+    for s in students:
+        for key, g in s["grades"].items():
+            if not key.startswith("~"):
+                met_code.setdefault(key, (g["naam"] or "").lower())
+
+    hermap = {}
+    for s in students:
+        for key, g in s["grades"].items():
+            if not key.startswith("~") or key in hermap:
+                continue
+            kort = key[1:]
+            treffers = [c for c, naam in met_code.items() if naam.startswith(kort)]
+            if len(treffers) == 1:
+                hermap[key] = treffers[0]
+
+    if not hermap:
+        return 0
+    for s in students:
+        for oud, nieuw in hermap.items():
+            if oud in s["grades"]:
+                g = s["grades"].pop(oud)
+                s["grades"].setdefault(nieuw, g)
+    return len(hermap)
+
+
+# ---------------------------------------------------------------------------
 # 5. Excel opbouwen
 # ---------------------------------------------------------------------------
 RED_FILL = PatternFill("solid", fgColor="FFC7CE")
@@ -378,6 +686,123 @@ def build_matrix_sheet(ws, students, courses_registry, show_track=False):
     ws.freeze_panes = ws.cell(row=3, column=nmeta + 1)
 
 
+def build_matrix_sheet_dual(ws, students, courses_registry, show_track=False):
+    """
+    Deliberatietabblad met eerste EN tweede zit: per vak drie kolommen
+    (1e zit / 2de zit / eind). Wordt gebruikt zodra er ook een
+    tweedezitlijst is aangeleverd.
+    """
+    META = ["Studentnr", "Naam", "Jaar"]
+    if show_track:
+        META.append("Richting")
+    META += ["Zit", "Lijst", "Resultaat %", "Eindbeoordeling"]
+    nmeta = len(META)
+
+    codes = sorted(
+        {c for s in students for c in s["grades2"]},
+        key=lambda c: (int(re.match(r"\d+", c).group()), c),
+    )
+
+    for j, label in enumerate(META, start=1):
+        c = ws.cell(row=1, column=j, value=label)
+        c.fill, c.font, c.alignment, c.border = HEAD_FILL, HEAD_FONT, CENTER, BORDER
+        c2 = ws.cell(row=2, column=j, value="")
+        c2.fill, c2.border = HEAD_FILL, BORDER
+        ws.merge_cells(start_row=1, start_column=j, end_row=2, end_column=j)
+
+    for k, code in enumerate(codes):
+        col = nmeta + 1 + k * 3
+        reg = courses_registry.get(code, {"naam": "", "sp": "", "lector": ""})
+        top = ws.cell(row=1, column=col, value=reg["naam"])
+        top.fill, top.font, top.alignment, top.border = HEAD_FILL, HEAD_FONT, VERT, BORDER
+        ws.merge_cells(start_row=1, start_column=col, end_row=1, end_column=col + 2)
+        for e, sub in enumerate(["1e", "2e", "eind"]):
+            c = ws.cell(row=2, column=col + e, value=sub)
+            c.fill, c.font, c.alignment, c.border = HEAD_FILL, HEAD_FONT, CENTER, BORDER
+            c.comment = Comment(
+                f"{code}\n{reg['naam']}\nStudiepunten: {reg['sp']}\n"
+                f"Lector: {reg['lector']}", "puntenlijst")
+            ws.column_dimensions[get_column_letter(col + e)].width = 5.5
+
+    extra = ["Gem. eind", "# Tekorten", "# Herkansingen",
+             "Examens (PDF)", "Tekorten (PDF)", "Controle"]
+    for e, label in enumerate(extra):
+        col = nmeta + 1 + len(codes) * 3 + e
+        c = ws.cell(row=1, column=col, value=label)
+        c.fill, c.font, c.alignment, c.border = HEAD_FILL, HEAD_FONT, CENTER, BORDER
+        c2 = ws.cell(row=2, column=col, value="")
+        c2.fill, c2.border = HEAD_FILL, BORDER
+        ws.merge_cells(start_row=1, start_column=col, end_row=2, end_column=col)
+        ws.column_dimensions[get_column_letter(col)].width = 13
+
+    ws.row_dimensions[1].height = 150
+
+    for i, s in enumerate(sorted(students, key=lambda x: x["naam"].lower())):
+        r = 3 + i
+        meta_vals = [s["nr"], s["naam"], s["status_jaar"]]
+        if show_track:
+            meta_vals.append(s.get("track_short", s.get("track", "")))
+        meta_vals += [s.get("zitten", ""), s.get("lijst", ""),
+                      s.get("resultaat", ""), s.get("beoordeling", "")]
+        for j, v in enumerate(meta_vals, start=1):
+            c = ws.cell(row=r, column=j, value=v)
+            c.fill, c.border = META_FILL, BORDER
+            if META[j - 1] in ("Resultaat %", "Zit"):
+                c.alignment = CENTER
+
+        numeriek, tekorten, herkansingen = [], 0, 0
+        for k, code in enumerate(codes):
+            col = nmeta + 1 + k * 3
+            for e in range(3):
+                cell = ws.cell(row=r, column=col + e)
+                cell.alignment, cell.border = CENTER, BORDER
+                if e == 1:
+                    cell.fill = ZIT2_FILL
+                elif e == 2:
+                    cell.fill = EIND_FILL
+            g = s["grades2"].get(code)
+            if not g:
+                continue
+            de, ve = eind_punt(g)
+            if g["d2"]:
+                herkansingen += 1
+            if ve is not None:
+                numeriek.append(ve)
+            if is_deficit(de, ve):
+                tekorten += 1
+            for e, (disp, val) in enumerate([(g["d1"], g["v1"]),
+                                             (g["d2"], g["v2"]), (de, ve)]):
+                cell = ws.cell(row=r, column=col + e)
+                if not disp:
+                    continue
+                cell.value = val if val is not None else disp
+                if is_deficit(disp, val):
+                    cell.fill, cell.font = RED_FILL, RED_FONT
+                elif is_credit(disp, val):
+                    cell.fill = CREDIT_FILL
+
+        ok, _ = check_student_merged(s)
+        gem = round(sum(numeriek) / len(numeriek), 1) if numeriek else ""
+        ctrl = [gem, tekorten, herkansingen, s.get("pdf_examens"),
+                s.get("pdf_tekorten"), "OK" if ok else "CONTROLEER"]
+        for e, v in enumerate(ctrl):
+            c = ws.cell(row=r, column=nmeta + 1 + len(codes) * 3 + e, value=v)
+            c.alignment, c.border = CENTER, BORDER
+            if e == 5:
+                if ok:
+                    c.font = GOOD_FONT
+                else:
+                    c.fill, c.font = BAD_FILL, Font(bold=True, color="9C6500")
+
+    META_WIDTHS = {"Studentnr": 12, "Naam": 26, "Jaar": 12, "Richting": 22,
+                   "Zit": 7, "Lijst": 16, "Resultaat %": 11,
+                   "Eindbeoordeling": 26}
+    for j, label in enumerate(META, start=1):
+        ws.column_dimensions[get_column_letter(j)].width = META_WIDTHS.get(label, 14)
+
+    ws.freeze_panes = ws.cell(row=3, column=nmeta + 1)
+
+
 def build_legend_sheet(ws, courses_registry):
     headers = ["Vakcode", "Vaknaam", "Studiepunten", "Lector(en)"]
     for j, h in enumerate(headers, start=1):
@@ -405,7 +830,8 @@ def build_check_sheet(ws, all_students):
     r = 2
     n_ok = n_bad = 0
     for s in sorted(all_students, key=lambda x: (x["track"], x["naam"].lower())):
-        ok, msgs = check_student(s)
+        ok, msgs = (check_student_merged(s) if "grades2" in s
+                    else check_student(s))
         n_ok += ok
         n_bad += (not ok)
         ws.cell(row=r, column=1, value=s["bron"])
@@ -424,6 +850,113 @@ def build_check_sheet(ws, all_students):
         ws.column_dimensions[col].width = w
     ws.freeze_panes = "A2"
     return n_ok, n_bad
+
+
+ZIT2_FILL = PatternFill("solid", fgColor="FFF2CC")   # kolom '2e zit'
+EIND_FILL = PatternFill("solid", fgColor="EDEDED")   # kolom 'eind'
+
+
+def build_zit2_sheet(ws, students, show_track=False):
+    """
+    Matrixtabblad voor het niet-diplomajaar: per vak drie kolommen
+    (1e zit / 2de zit / eindresultaat).
+    """
+    META = ["Studentnr", "Naam", "Jaar"]
+    if show_track:
+        META.append("Richting")
+    nmeta = len(META)
+
+    # Alle vakken die in dit tabblad voorkomen, met hun weergavenaam.
+    namen = {}
+    for s in students:
+        for key, g in s["grades"].items():
+            namen.setdefault(key, g["naam"])
+    keys = sorted(namen, key=lambda k: (namen[k] or "").lower())
+
+    # ---- koprijen ----
+    for j, label in enumerate(META, start=1):
+        c = ws.cell(row=1, column=j, value=label)
+        c.fill, c.font, c.alignment, c.border = HEAD_FILL, HEAD_FONT, CENTER, BORDER
+        c2 = ws.cell(row=2, column=j, value="")
+        c2.fill, c2.border = HEAD_FILL, BORDER
+        ws.merge_cells(start_row=1, start_column=j, end_row=2, end_column=j)
+
+    for k, key in enumerate(keys):
+        col = nmeta + 1 + k * 3
+        top = ws.cell(row=1, column=col, value=namen[key])
+        top.fill, top.font, top.alignment, top.border = HEAD_FILL, HEAD_FONT, VERT, BORDER
+        ws.merge_cells(start_row=1, start_column=col, end_row=1, end_column=col + 2)
+        for e, sub in enumerate(["1e", "2e", "eind"]):
+            c = ws.cell(row=2, column=col + e, value=sub)
+            c.fill, c.font, c.alignment, c.border = HEAD_FILL, HEAD_FONT, CENTER, BORDER
+            comment_txt = namen[key] + (f"\nVakcode: {key}" if not key.startswith("~") else "")
+            c.comment = Comment(comment_txt, "puntenlijst")
+            ws.column_dimensions[get_column_letter(col + e)].width = 5.5
+
+    extra = ["Gem. eind", "# Tekorten", "# Vakken", "# Tweede zit"]
+    for e, label in enumerate(extra):
+        col = nmeta + 1 + len(keys) * 3 + e
+        c = ws.cell(row=1, column=col, value=label)
+        c.fill, c.font, c.alignment, c.border = HEAD_FILL, HEAD_FONT, CENTER, BORDER
+        c2 = ws.cell(row=2, column=col, value="")
+        c2.fill, c2.border = HEAD_FILL, BORDER
+        ws.merge_cells(start_row=1, start_column=col, end_row=2, end_column=col)
+        ws.column_dimensions[get_column_letter(col)].width = 12
+
+    ws.row_dimensions[1].height = 150
+
+    # ---- studentrijen ----
+    for i, s in enumerate(sorted(students, key=lambda x: x["naam"].lower())):
+        r = 3 + i
+        meta_vals = [s["nr"], s["naam"], s["status_jaar"]]
+        if show_track:
+            meta_vals.append(s.get("track_short", ""))
+        for j, v in enumerate(meta_vals, start=1):
+            c = ws.cell(row=r, column=j, value=v)
+            c.fill, c.border = META_FILL, BORDER
+
+        numeriek, tekorten, n_tweede = [], 0, 0
+        for k, key in enumerate(keys):
+            col = nmeta + 1 + k * 3
+            g = s["grades"].get(key)
+            for e in range(3):
+                cell = ws.cell(row=r, column=col + e)
+                cell.alignment, cell.border = CENTER, BORDER
+                if e == 1:
+                    cell.fill = ZIT2_FILL
+                elif e == 2:
+                    cell.fill = EIND_FILL
+            if not g:
+                continue
+            de, ve = eind_punt(g)
+            if g["d2"]:
+                n_tweede += 1
+            if ve is not None:
+                numeriek.append(ve)
+            if is_deficit(de, ve):
+                tekorten += 1
+
+            paren = [(g["d1"], g["v1"]), (g["d2"], g["v2"]), (de, ve)]
+            for e, (disp, val) in enumerate(paren):
+                cell = ws.cell(row=r, column=col + e)
+                if not disp:
+                    continue
+                cell.value = val if val is not None else disp
+                if is_deficit(disp, val):
+                    cell.fill, cell.font = RED_FILL, RED_FONT
+                elif is_credit(disp, val):
+                    cell.fill = CREDIT_FILL
+
+        gem = round(sum(numeriek) / len(numeriek), 1) if numeriek else ""
+        for e, v in enumerate([gem, tekorten, len(s["grades"]), n_tweede]):
+            c = ws.cell(row=r, column=nmeta + 1 + len(keys) * 3 + e, value=v)
+            c.alignment, c.border = CENTER, BORDER
+
+    META_WIDTHS = {"Studentnr": 12, "Naam": 26, "Jaar": 12, "Richting": 22}
+    for j, label in enumerate(META, start=1):
+        ws.column_dimensions[get_column_letter(j)].width = META_WIDTHS.get(label, 14)
+
+    ws.freeze_panes = ws.cell(row=3, column=nmeta + 1)
 
 
 def sheet_title(name, used):
@@ -461,9 +994,20 @@ def generate(pdf_paths, out_dir=None, log=print):
     courses_registry = {}
     problems = []
     all_students = []
+    zit2_students = []
 
+    # Eerst de deliberatielijsten: die vullen de vakkenregistratie met de
+    # volledige vaknamen. De 'Vaststelling Punten'-rapporten kunnen daar
+    # daarna op aansluiten (zelfde vaknamen en vakcodes).
+    delib_pdfs, vast_pdfs = [], []
     for p in pdfs:
-        log(f"Inlezen: {os.path.basename(p)}")
+        (vast_pdfs if is_vaststelling_pdf(p) else delib_pdfs).append(p)
+
+    zitten_gezien = set()
+    for p in delib_pdfs:
+        zit = detect_zit(p)
+        zitten_gezien.add(zit)
+        log(f"Inlezen (deliberatie, {zit}e zit): {os.path.basename(p)}")
         try:
             students = parse_pdf(p, courses_registry, problems)
         except Exception as e:
@@ -477,12 +1021,40 @@ def generate(pdf_paths, out_dir=None, log=print):
             s["status_jaar"] = jaar
             s["track"] = track
             s["track_short"] = track_short
+            s["zit"] = zit
         all_students.extend(students)
         log(f"   {len(students)} studenten gevonden")
 
-    if not all_students:
+    # Alleen wanneer BEIDE zittijden zijn aangeleverd, worden de studenten op
+    # studentnummer samengevoegd tot één rij met kolommen 1e zit / 2de zit /
+    # eind. Levert iemand enkel de tweedezitlijst aan, dan is die lijst al
+    # volledig en blijft de gewone (smalle) opmaak behouden.
+    dual = {1, 2} <= zitten_gezien and len(all_students) > 0
+    if dual:
+        voor = len(all_students)
+        all_students = merge_zit_students(all_students, problems)
+        log("")
+        log(f"Eerste en tweede zit samengevoegd: {voor} inschrijvingen -> "
+            f"{len(all_students)} studenten")
+
+    for p in vast_pdfs:
+        log(f"Inlezen (2de zit / niet-diplomajaar): {os.path.basename(p)}")
+        try:
+            students = parse_vaststelling_pdf(p, courses_registry, problems)
+        except Exception as e:
+            problems.append(f"Kon {os.path.basename(p)} niet verwerken: {e}")
+            log(f"   !! overgeslagen door fout: {e}")
+            continue
+        zit2_students.extend(students)
+        log(f"   {len(students)} studenten gevonden")
+
+    if zit2_students:
+        consolidate_zit2_keys(zit2_students)
+
+    if not all_students and not zit2_students:
         raise ValueError(
-            "Geen studenten gevonden in de PDF's. Zijn dit wel deliberatie-PDF's?"
+            "Geen studenten gevonden in de PDF's. Zijn dit wel deliberatie-PDF's "
+            "of 'Rapport Vaststelling Punten'-PDF's?"
         )
 
     groups = {}
@@ -496,16 +1068,35 @@ def generate(pdf_paths, out_dir=None, log=print):
     def group_sort_key(track):
         return (0 if track.startswith("Master") else 1 if track.startswith("Schakel") else 2, track)
 
+    bouw = build_matrix_sheet_dual if dual else build_matrix_sheet
+
     master_students = [s for s in all_students if s["status_jaar"] == "Masterjaar"]
     if master_students:
         ws = wb.create_sheet(sheet_title("Masterjaar - alle richtingen", used_titles))
-        build_matrix_sheet(ws, master_students, courses_registry, show_track=True)
+        bouw(ws, master_students, courses_registry, show_track=True)
 
     for track in sorted(groups, key=group_sort_key):
         ws = wb.create_sheet(sheet_title(track, used_titles))
-        build_matrix_sheet(ws, groups[track], courses_registry)
+        bouw(ws, groups[track], courses_registry)
 
-    build_check_sheet(wb.create_sheet(sheet_title("Controle", used_titles)), all_students)
+    # Extra tabbladen voor het niet-diplomajaar (1e zit / 2de zit / eind)
+    zit2_master = [s for s in zit2_students if s["status_jaar"] == "Masterjaar"]
+    zit2_schakel = [s for s in zit2_students if s["status_jaar"] == "Schakeljaar"]
+    zit2_rest = [s for s in zit2_students
+                 if s["status_jaar"] not in ("Masterjaar", "Schakeljaar")]
+    if zit2_master:
+        ws = wb.create_sheet(sheet_title("Master niet-diplomajaar", used_titles))
+        build_zit2_sheet(ws, zit2_master, show_track=True)
+    if zit2_schakel:
+        ws = wb.create_sheet(sheet_title("Schakeljaar niet-diplomajaar", used_titles))
+        build_zit2_sheet(ws, zit2_schakel)
+    if zit2_rest:
+        ws = wb.create_sheet(sheet_title("Overige niet-diplomajaar", used_titles))
+        build_zit2_sheet(ws, zit2_rest, show_track=True)
+
+    if all_students:
+        build_check_sheet(wb.create_sheet(sheet_title("Controle", used_titles)),
+                          all_students)
     build_legend_sheet(wb.create_sheet(sheet_title("Legende", used_titles)), courses_registry)
 
     stamp = datetime.now().strftime("%Y-%m-%d_%H%M")
@@ -519,18 +1110,27 @@ def generate(pdf_paths, out_dir=None, log=print):
     out_path = os.path.join(out_dir, out_name)
     wb.save(out_path)
 
-    n_ok = sum(1 for s in all_students if check_student(s)[0])
+    n_ok = sum(1 for s in all_students
+               if (check_student_merged(s) if "grades2" in s
+                   else check_student(s))[0])
     n_bad = len(all_students) - n_ok
 
     log("")
     log("=" * 50)
     log("KLAAR")
-    log(f"Studenten verwerkt : {len(all_students)}")
-    log(f"Opleidingen (tabbladen): {len(groups)}")
-    for track in sorted(groups, key=group_sort_key):
-        log(f"    - {track}: {len(groups[track])} studenten")
-    log(f"Controle OK        : {n_ok}")
-    log(f"Controle te checken: {n_bad}")
+    if all_students:
+        log(f"Deliberatie - studenten : {len(all_students)}")
+        log(f"Opleidingen (tabbladen) : {len(groups)}")
+        for track in sorted(groups, key=group_sort_key):
+            log(f"    - {track}: {len(groups[track])} studenten")
+        log(f"Controle OK         : {n_ok}")
+        log(f"Controle te checken : {n_bad}")
+    if zit2_students:
+        log(f"2de zit - studenten     : {len(zit2_students)}")
+        if zit2_master:
+            log(f"    - Master: {len(zit2_master)} studenten")
+        if zit2_schakel:
+            log(f"    - Schakeljaar: {len(zit2_schakel)} studenten")
     if problems:
         log("")
         log("Meldingen tijdens het inlezen:")
@@ -544,7 +1144,9 @@ def generate(pdf_paths, out_dir=None, log=print):
 
     return {
         "out_path": out_path,
-        "n_students": len(all_students),
+        "n_students": len(all_students) + len(zit2_students),
+        "n_delib": len(all_students),
+        "n_zit2": len(zit2_students),
         "n_ok": n_ok,
         "n_bad": n_bad,
         "groups": {t: len(g) for t, g in groups.items()},
