@@ -85,6 +85,21 @@ behouden: die lijst bevat immers al alle vakken met hun definitieve punt.
   "CONTROLEER", kijk die student dan even na.
 - Tabblad **Legende**: alle vakcodes met vaknaam, studiepunten en lector.
 
+### Sorteren, filteren en kolommen verbergen
+
+- Elk tabblad staat **gesorteerd van hoog naar laag op "Resultaat %"**. Waar de
+  PDF geen percentage vermeldt (de tabbladen van het niet-diplomajaar) gebeurt
+  dat op het gemiddelde eindpunt.
+- De **filterknoppen staan al aan** op de kopregel. Klik op een pijltje om zelf
+  te sorteren of te filteren, bijvoorbeeld op richting of op "CONTROLEER".
+- Op de tabbladen met een eerste én tweede zit kan je de kolommen **"1e" en
+  "2e" inklappen** zodat enkel het eindresultaat overblijft. Gebruik daarvoor
+  de kleine knopjes **1** en **2** linksboven het werkblad: **1** toont enkel
+  de eindpunten, **2** toont alles weer. Per vak kan het ook apart, met de
+  plus- en minknopjes boven de kolommen.
+- Bovenaan elke vakkolom staat de **vakcode én de vaknaam**. Beweeg met de muis
+  over de kop voor de studiepunten en de lector.
+
 ---
 
 ## 3. Eerste keer openen op een Mac
@@ -167,6 +182,15 @@ foutmelding, een schermafbeelding van het logvenster.
 ## 7. Versiegeschiedenis
 
 Je vindt deze lijst ook in de app zelf, via de knop **"Info"**.
+
+### Versie 1.3.0 (8 september 2026)
+
+- Kolommen "1e" en "2e" zijn inklapbaar: met de knopjes 1 en 2 linksboven zie
+  je in één klik enkel de eindresultaten.
+- Elk tabblad is gesorteerd van hoog naar laag op "Resultaat %" (en op het
+  gemiddelde eindpunt waar de PDF geen percentage geeft).
+- De filterknoppen staan standaard aan op alle tabbladen.
+- De kolomkop toont voortaan de vakcode én de vaknaam.
 
 ### Versie 1.2.0 (8 september 2026)
 

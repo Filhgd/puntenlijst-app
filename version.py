@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Versie-, ontwikkelaars- en wijzigingsinformatie van de Puntenlijst-generator."""
 
-__version__ = "1.2.0"
+__version__ = "1.3.0"
 
 APP_NAME = "Puntenlijst-generator"
 DEVELOPER = "Filip Haegdorens"
@@ -12,6 +12,15 @@ ORGANISATION = "Universiteit Antwerpen - Faculteit Geneeskunde en Gezondheidswet
 # Laat de datum leeg ("") als je die niet wil tonen.
 # Nieuwste versie steeds bovenaan.
 VERSION_HISTORY = [
+    ("1.3.0", "8 september 2026", [
+        "Kolommen '1e' en '2e' zijn nu inklapbaar: met de knopjes 1 en 2 "
+        "linksboven in Excel zie je in één klik enkel de eindresultaten.",
+        "Elk tabblad is gesorteerd van hoog naar laag op 'Resultaat %' "
+        "(en op het gemiddelde eindpunt waar de PDF geen percentage geeft).",
+        "De filterknoppen staan standaard aan op alle tabbladen, zodat je "
+        "zelf kan sorteren en filteren.",
+        "De kolomkop toont voortaan de vakcode én de vaknaam.",
+    ]),
     ("1.2.0", "8 september 2026", [
         "Ondersteuning voor 'Rapport Vaststelling Punten' (niet-diplomajaar): "
         "nieuwe tabbladen 'Master niet-diplomajaar' en 'Schakeljaar "

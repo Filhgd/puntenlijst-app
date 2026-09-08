@@ -587,6 +587,48 @@ CENTER = Alignment(horizontal="center", vertical="center")
 VERT = Alignment(textRotation=90, vertical="bottom", horizontal="center", wrap_text=True)
 
 
+def kop_vak(code, naam):
+    """Kolomkop van een vak: altijd met de vakcode erbij."""
+    naam = (naam or "").strip()
+    if not code or code.startswith("~"):
+        return naam
+    return f"{code} - {naam}" if naam else code
+
+
+def sorteer_studenten(students, op_resultaat=True):
+    """
+    Sorteer van hoog naar laag.
+
+    Op de deliberatietabbladen gebeurt dat op 'Resultaat %'; op de tabbladen
+    van het niet-diplomajaar (waar de PDF geen percentage vermeldt) op het
+    gemiddelde van de eindpunten. Bij een gelijke stand telt de naam.
+    """
+    def sleutel(s):
+        waarde = None
+        if op_resultaat:
+            r = s.get("resultaat", "")
+            waarde = r if isinstance(r, (int, float)) else None
+        if waarde is None:
+            punten = []
+            for g in (s.get("grades2") or s.get("grades") or {}).values():
+                if isinstance(g, dict):
+                    _, v = eind_punt(g)
+                else:
+                    v = g[1]
+                if v is not None:
+                    punten.append(v)
+            waarde = sum(punten) / len(punten) if punten else -1
+        return (-waarde, s["naam"].lower())
+    return sorted(students, key=sleutel)
+
+
+def zet_filter(ws, laatste_kolom, laatste_rij):
+    """Zet de filterknoppen aan op de kopregel (rij 2) van een matrixtabblad."""
+    if laatste_rij < 3:
+        return
+    ws.auto_filter.ref = f"A2:{get_column_letter(laatste_kolom)}{laatste_rij}"
+
+
 def build_matrix_sheet(ws, students, courses_registry, show_track=False):
     META = ["Studentnr", "Naam", "Jaar"]
     if show_track:
@@ -599,17 +641,18 @@ def build_matrix_sheet(ws, students, courses_registry, show_track=False):
         key=lambda c: (int(re.match(r"\d+", c).group()), c),
     )
 
+    # Kopregel: het label staat op rij 2 (de filterregel); rij 1 blijft vrij
+    # voor de gedraaide vaknamen.
     for j, label in enumerate(META, start=1):
-        c = ws.cell(row=1, column=j, value=label)
+        c1 = ws.cell(row=1, column=j, value="")
+        c1.fill, c1.border = HEAD_FILL, BORDER
+        c = ws.cell(row=2, column=j, value=label)
         c.fill, c.font, c.alignment, c.border = HEAD_FILL, HEAD_FONT, CENTER, BORDER
-        c2 = ws.cell(row=2, column=j, value="")
-        c2.fill, c2.border = HEAD_FILL, BORDER
-        ws.merge_cells(start_row=1, start_column=j, end_row=2, end_column=j)
 
     for k, code in enumerate(codes):
         col = nmeta + 1 + k
         reg = courses_registry.get(code, {"naam": "", "sp": "", "lector": ""})
-        top = ws.cell(row=1, column=col, value=reg["naam"])
+        top = ws.cell(row=1, column=col, value=kop_vak(code, reg["naam"]))
         top.fill, top.font, top.alignment, top.border = HEAD_FILL, HEAD_FONT, VERT, BORDER
         bot = ws.cell(row=2, column=col, value=code)
         bot.fill, bot.font, bot.alignment, bot.border = HEAD_FILL, HEAD_FONT, CENTER, BORDER
@@ -620,16 +663,15 @@ def build_matrix_sheet(ws, students, courses_registry, show_track=False):
     extra = ["Gem.", "# Tekorten", "Examens (PDF)", "Tekorten (PDF)", "Controle"]
     for e, label in enumerate(extra):
         col = nmeta + 1 + len(codes) + e
-        c = ws.cell(row=1, column=col, value=label)
+        c1 = ws.cell(row=1, column=col, value="")
+        c1.fill, c1.border = HEAD_FILL, BORDER
+        c = ws.cell(row=2, column=col, value=label)
         c.fill, c.font, c.alignment, c.border = HEAD_FILL, HEAD_FONT, CENTER, BORDER
-        c2 = ws.cell(row=2, column=col, value="")
-        c2.fill, c2.border = HEAD_FILL, BORDER
-        ws.merge_cells(start_row=1, start_column=col, end_row=2, end_column=col)
         ws.column_dimensions[get_column_letter(col)].width = 13
 
     ws.row_dimensions[1].height = 150
 
-    for i, s in enumerate(sorted(students, key=lambda x: x["naam"].lower())):
+    for i, s in enumerate(sorteer_studenten(students)):
         r = 3 + i
         meta_vals = [s["nr"], s["naam"], s["status_jaar"]]
         if show_track:
@@ -684,6 +726,7 @@ def build_matrix_sheet(ws, students, courses_registry, show_track=False):
         ws.column_dimensions[get_column_letter(j)].width = META_WIDTHS.get(label, 14)
 
     ws.freeze_panes = ws.cell(row=3, column=nmeta + 1)
+    zet_filter(ws, nmeta + len(codes) + len(extra), 2 + len(students))
 
 
 def build_matrix_sheet_dual(ws, students, courses_registry, show_track=False):
@@ -704,16 +747,15 @@ def build_matrix_sheet_dual(ws, students, courses_registry, show_track=False):
     )
 
     for j, label in enumerate(META, start=1):
-        c = ws.cell(row=1, column=j, value=label)
+        c1 = ws.cell(row=1, column=j, value="")
+        c1.fill, c1.border = HEAD_FILL, BORDER
+        c = ws.cell(row=2, column=j, value=label)
         c.fill, c.font, c.alignment, c.border = HEAD_FILL, HEAD_FONT, CENTER, BORDER
-        c2 = ws.cell(row=2, column=j, value="")
-        c2.fill, c2.border = HEAD_FILL, BORDER
-        ws.merge_cells(start_row=1, start_column=j, end_row=2, end_column=j)
 
     for k, code in enumerate(codes):
         col = nmeta + 1 + k * 3
         reg = courses_registry.get(code, {"naam": "", "sp": "", "lector": ""})
-        top = ws.cell(row=1, column=col, value=reg["naam"])
+        top = ws.cell(row=1, column=col, value=kop_vak(code, reg["naam"]))
         top.fill, top.font, top.alignment, top.border = HEAD_FILL, HEAD_FONT, VERT, BORDER
         ws.merge_cells(start_row=1, start_column=col, end_row=1, end_column=col + 2)
         for e, sub in enumerate(["1e", "2e", "eind"]):
@@ -723,21 +765,22 @@ def build_matrix_sheet_dual(ws, students, courses_registry, show_track=False):
                 f"{code}\n{reg['naam']}\nStudiepunten: {reg['sp']}\n"
                 f"Lector: {reg['lector']}", "puntenlijst")
             ws.column_dimensions[get_column_letter(col + e)].width = 5.5
+        # 1e en 2e zit inklapbaar maken; 'eind' blijft altijd zichtbaar.
+        groepeer_zitkolommen(ws, col)
 
     extra = ["Gem. eind", "# Tekorten", "# Herkansingen",
              "Examens (PDF)", "Tekorten (PDF)", "Controle"]
     for e, label in enumerate(extra):
         col = nmeta + 1 + len(codes) * 3 + e
-        c = ws.cell(row=1, column=col, value=label)
+        c1 = ws.cell(row=1, column=col, value="")
+        c1.fill, c1.border = HEAD_FILL, BORDER
+        c = ws.cell(row=2, column=col, value=label)
         c.fill, c.font, c.alignment, c.border = HEAD_FILL, HEAD_FONT, CENTER, BORDER
-        c2 = ws.cell(row=2, column=col, value="")
-        c2.fill, c2.border = HEAD_FILL, BORDER
-        ws.merge_cells(start_row=1, start_column=col, end_row=2, end_column=col)
         ws.column_dimensions[get_column_letter(col)].width = 13
 
     ws.row_dimensions[1].height = 150
 
-    for i, s in enumerate(sorted(students, key=lambda x: x["naam"].lower())):
+    for i, s in enumerate(sorteer_studenten(students)):
         r = 3 + i
         meta_vals = [s["nr"], s["naam"], s["status_jaar"]]
         if show_track:
@@ -801,6 +844,7 @@ def build_matrix_sheet_dual(ws, students, courses_registry, show_track=False):
         ws.column_dimensions[get_column_letter(j)].width = META_WIDTHS.get(label, 14)
 
     ws.freeze_panes = ws.cell(row=3, column=nmeta + 1)
+    zet_filter(ws, nmeta + len(codes) * 3 + len(extra), 2 + len(students))
 
 
 def build_legend_sheet(ws, courses_registry):
@@ -819,6 +863,8 @@ def build_legend_sheet(ws, courses_registry):
     ws.column_dimensions["C"].width = 12
     ws.column_dimensions["D"].width = 40
     ws.freeze_panes = "A2"
+    if courses_registry:
+        ws.auto_filter.ref = f"A1:D{len(courses_registry) + 1}"
 
 
 def build_check_sheet(ws, all_students):
@@ -849,11 +895,31 @@ def build_check_sheet(ws, all_students):
     for col, w in zip("ABCDEFG", [28, 12, 26, 12, 42, 16, 70]):
         ws.column_dimensions[col].width = w
     ws.freeze_panes = "A2"
+    if r > 2:
+        ws.auto_filter.ref = f"A1:G{r - 1}"
     return n_ok, n_bad
 
 
 ZIT2_FILL = PatternFill("solid", fgColor="FFF2CC")   # kolom '2e zit'
 EIND_FILL = PatternFill("solid", fgColor="EDEDED")   # kolom 'eind'
+
+
+def groepeer_zitkolommen(ws, col):
+    """
+    Maak de kolommen '1e' en '2e' van één vak inklapbaar.
+
+    De kolom 'eind' blijft altijd zichtbaar. In Excel verschijnen bovenaan
+    plus- en minknopjes; met de knopjes '1' en '2' linksboven klap je in één
+    keer alle vakken in of uit, zodat je enkel de eindresultaten ziet.
+    """
+    try:
+        ws.sheet_properties.outlinePr.summaryRight = True
+        ws.column_dimensions.group(
+            get_column_letter(col), get_column_letter(col + 1),
+            outline_level=1, hidden=False,
+        )
+    except Exception:
+        pass
 
 
 def build_zit2_sheet(ws, students, show_track=False):
@@ -875,15 +941,14 @@ def build_zit2_sheet(ws, students, show_track=False):
 
     # ---- koprijen ----
     for j, label in enumerate(META, start=1):
-        c = ws.cell(row=1, column=j, value=label)
+        c1 = ws.cell(row=1, column=j, value="")
+        c1.fill, c1.border = HEAD_FILL, BORDER
+        c = ws.cell(row=2, column=j, value=label)
         c.fill, c.font, c.alignment, c.border = HEAD_FILL, HEAD_FONT, CENTER, BORDER
-        c2 = ws.cell(row=2, column=j, value="")
-        c2.fill, c2.border = HEAD_FILL, BORDER
-        ws.merge_cells(start_row=1, start_column=j, end_row=2, end_column=j)
 
     for k, key in enumerate(keys):
         col = nmeta + 1 + k * 3
-        top = ws.cell(row=1, column=col, value=namen[key])
+        top = ws.cell(row=1, column=col, value=kop_vak(key, namen[key]))
         top.fill, top.font, top.alignment, top.border = HEAD_FILL, HEAD_FONT, VERT, BORDER
         ws.merge_cells(start_row=1, start_column=col, end_row=1, end_column=col + 2)
         for e, sub in enumerate(["1e", "2e", "eind"]):
@@ -892,21 +957,21 @@ def build_zit2_sheet(ws, students, show_track=False):
             comment_txt = namen[key] + (f"\nVakcode: {key}" if not key.startswith("~") else "")
             c.comment = Comment(comment_txt, "puntenlijst")
             ws.column_dimensions[get_column_letter(col + e)].width = 5.5
+        groepeer_zitkolommen(ws, col)
 
     extra = ["Gem. eind", "# Tekorten", "# Vakken", "# Tweede zit"]
     for e, label in enumerate(extra):
         col = nmeta + 1 + len(keys) * 3 + e
-        c = ws.cell(row=1, column=col, value=label)
+        c1 = ws.cell(row=1, column=col, value="")
+        c1.fill, c1.border = HEAD_FILL, BORDER
+        c = ws.cell(row=2, column=col, value=label)
         c.fill, c.font, c.alignment, c.border = HEAD_FILL, HEAD_FONT, CENTER, BORDER
-        c2 = ws.cell(row=2, column=col, value="")
-        c2.fill, c2.border = HEAD_FILL, BORDER
-        ws.merge_cells(start_row=1, start_column=col, end_row=2, end_column=col)
         ws.column_dimensions[get_column_letter(col)].width = 12
 
     ws.row_dimensions[1].height = 150
 
     # ---- studentrijen ----
-    for i, s in enumerate(sorted(students, key=lambda x: x["naam"].lower())):
+    for i, s in enumerate(sorteer_studenten(students, op_resultaat=False)):
         r = 3 + i
         meta_vals = [s["nr"], s["naam"], s["status_jaar"]]
         if show_track:
@@ -957,6 +1022,7 @@ def build_zit2_sheet(ws, students, show_track=False):
         ws.column_dimensions[get_column_letter(j)].width = META_WIDTHS.get(label, 14)
 
     ws.freeze_panes = ws.cell(row=3, column=nmeta + 1)
+    zet_filter(ws, nmeta + len(keys) * 3 + len(extra), 2 + len(students))
 
 
 def sheet_title(name, used):
