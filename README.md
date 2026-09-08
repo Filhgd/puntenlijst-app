@@ -21,8 +21,8 @@ Je krijgt van Filip een van deze bestanden:
 
 Deze links wijzen altijd naar de nieuwste versie:
 
-- Mac: <https://github.com/Filhgd/REPO/releases/latest/download/Puntenlijst-mac.zip>
-- Windows: <https://github.com/Filhgd/REPO/releases/latest/download/Puntenlijst.exe>
+- Mac: <https://github.com/Filhgd/puntenlijst-app/releases/latest/download/Puntenlijst-mac.zip>
+- Windows: <https://github.com/Filhgd/puntenlijst-app/releases/latest/download/Puntenlijst.exe>
 
 Er is niets te installeren: het is één bestand dat je gewoon opent.
 Bewaar het bv. op je Bureaublad of in je Documenten.
