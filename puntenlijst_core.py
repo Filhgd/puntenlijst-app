@@ -456,6 +456,73 @@ def match_course_key(raw_name, courses_registry):
     return "~" + kort.lower(), kort
 
 
+GRADE_TOKEN_RE = re.compile(r"^(\d{1,2}|[A-Z]{1,4})$")
+
+
+def _regels_met_posities(page):
+    """
+    Geef per tekstregel de woorden mét hun x-positie terug.
+
+    Nodig omdat de kolommen '1e zit' en '2de zit' in de platte tekst niet te
+    onderscheiden zijn: staat enkel de tweede zit ingevuld, dan ziet een regel
+    er identiek uit als eentje met enkel een eerste zit. De x-positie van het
+    punt verraadt wel in welke kolom het staat.
+    """
+    woorden = page.extract_words() or []
+    regels = {}
+    for w in woorden:
+        regels.setdefault(round(w["top"]), []).append(w)
+    uit = []
+    for top in sorted(regels):
+        ws = sorted(regels[top], key=lambda w: w["x0"])
+        uit.append((" ".join(w["text"] for w in ws), ws))
+    return uit
+
+
+def _kolomgrenzen(page):
+    """
+    Zoek op deze pagina de x-posities van de kolommen 'SP', '1e zit' en
+    '2de zit'. Geeft (sp_x, grens_1e, grens_tussen) terug, of None.
+    """
+    for _, ws in _regels_met_posities(page):
+        tekst = " ".join(w["text"] for w in ws)
+        if "1e zit" not in tekst or "2de zit" not in tekst:
+            continue
+        sp = next((w for w in ws if w["text"] == "SP"), None)
+        een = next((w for w in ws if w["text"] == "1e"), None)
+        twee = next((w for w in ws if w["text"] == "2de"), None)
+        if een and twee:
+            sp_x = sp["x0"] if sp else een["x0"] - 55
+            return sp_x, een["x0"] - 15, (een["x1"] + twee["x0"]) / 2
+    return None
+
+
+def _split_vakregel(ws, sp_x, grens_1e, grens_tussen):
+    """
+    Verdeel de woorden van een vakregel over naam, studiepunten en de punten
+    van de eerste en de tweede zit, op basis van hun x-positie.
+
+    Geeft (naam, sp, punt1, punt2) terug, of None als dit geen vakregel is.
+    """
+    naam_w, sp_w, g1, g2 = [], None, "", ""
+    for w in ws:
+        t = w["text"]
+        if w["x0"] >= grens_1e:                       # puntenkolommen
+            if not GRADE_TOKEN_RE.match(t):
+                return None
+            if w["x0"] < grens_tussen:
+                g1 = t if not g1 else g1
+            else:
+                g2 = t if not g2 else g2
+        elif sp_w is None and w["x0"] >= sp_x - 10 and GRADE_TOKEN_RE.match(t):
+            sp_w = t                                  # studiepuntenkolom
+        else:
+            naam_w.append(t)
+    if not naam_w or (not g1 and not g2):
+        return None
+    return " ".join(naam_w), (sp_w or ""), g1, g2
+
+
 def parse_vaststelling_pdf(path, courses_registry, problems):
     """Lees één 'Vaststelling Punten'-PDF. Geeft een lijst studentdicts terug."""
     students = []
@@ -466,7 +533,8 @@ def parse_vaststelling_pdf(path, courses_registry, problems):
 
     with pdfplumber.open(path) as pdf:
         for page in pdf.pages:
-            for line in (page.extract_text() or "").split("\n"):
+            grenzen = _kolomgrenzen(page)
+            for line, ws in _regels_met_posities(page):
                 line = line.strip()
                 if not line or "Page " in line or line.startswith("Opleidingsonderdeel"):
                     continue
@@ -507,21 +575,28 @@ def parse_vaststelling_pdf(path, courses_registry, problems):
                     cur = None
                     continue
 
-                mc = VAST_COURSE_RE.match(line)
-                if mc and cur is not None:
-                    key, naam = match_course_key(mc.group("name"), courses_registry)
-                    d1, v1 = grade_to_value(mc.group("g1"))
-                    if mc.group("g2"):
-                        d2, v2 = grade_to_value(mc.group("g2"))
-                    else:
-                        d2, v2 = "", None
+                # Vakregel: bij voorkeur op x-positie ontleden (dan weten we
+                # zeker bij welke zit een punt hoort), anders op tekstpatroon.
+                velden = None
+                if grenzen and cur is not None:
+                    velden = _split_vakregel(ws, *grenzen)
+                if velden is None and cur is not None:
+                    mc = VAST_COURSE_RE.match(line)
+                    if mc:
+                        velden = (mc.group("name"), mc.group("sp"),
+                                  mc.group("g1"), mc.group("g2") or "")
+                if velden is not None:
+                    ruwe_naam, sp_txt, g1_txt, g2_txt = velden
+                    key, naam = match_course_key(ruwe_naam, courses_registry)
+                    d1, v1 = grade_to_value(g1_txt) if g1_txt else ("", None)
+                    d2, v2 = grade_to_value(g2_txt) if g2_txt else ("", None)
                     if key in cur["grades"]:
                         problems.append(
                             f"{cur['bron']}: student {cur['nr']} {cur['naam']} heeft "
                             f"vak '{naam}' meer dan één keer; laatste punt gebruikt."
                         )
                     cur["grades"][key] = {
-                        "naam": naam, "sp": mc.group("sp"),
+                        "naam": naam, "sp": sp_txt,
                         "d1": d1, "v1": v1, "d2": d2, "v2": v2,
                     }
                     continue

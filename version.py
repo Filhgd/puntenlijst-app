@@ -20,6 +20,10 @@ VERSION_HISTORY = [
         "De filterknoppen staan standaard aan op alle tabbladen, zodat je "
         "zelf kan sorteren en filteren.",
         "De kolomkop toont voortaan de vakcode én de vaknaam.",
+        "Opgelost: in de rapporten van het niet-diplomajaar werden punten soms "
+        "in de verkeerde kolom gezet wanneer het aantal studiepunten ontbrak. "
+        "De punten worden nu toegewezen op basis van hun plaats in de PDF, "
+        "zodat 1e en 2de zit altijd correct uit elkaar gehouden worden.",
     ]),
     ("1.2.0", "8 september 2026", [
         "Ondersteuning voor 'Rapport Vaststelling Punten' (niet-diplomajaar): "
