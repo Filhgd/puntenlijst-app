@@ -92,11 +92,11 @@ behouden: die lijst bevat immers al alle vakken met hun definitieve punt.
   dat op het gemiddelde eindpunt.
 - De **filterknoppen staan al aan** op de kopregel. Klik op een pijltje om zelf
   te sorteren of te filteren, bijvoorbeeld op richting of op "CONTROLEER".
-- Op de tabbladen met een eerste én tweede zit kan je de kolommen **"1e" en
-  "2e" inklappen** zodat enkel het eindresultaat overblijft. Gebruik daarvoor
-  de kleine knopjes **1** en **2** linksboven het werkblad: **1** toont enkel
-  de eindpunten, **2** toont alles weer. Per vak kan het ook apart, met de
-  plus- en minknopjes boven de kolommen.
+- Op de tabbladen met een eerste én tweede zit staan de kolommen **"1e" en
+  "2e" bij het openen ingeklapt**: je ziet meteen het overzicht met enkel de
+  eindresultaten. Klik op een **plusje** boven een kolom om dat ene vak open
+  te klappen, of gebruik de knopjes **1** en **2** linksboven het werkblad:
+  **2** klapt alles open, **1** klapt alles weer dicht.
 - Bovenaan elke vakkolom staat de **vakcode én de vaknaam**. Beweeg met de muis
   over de kop voor de studiepunten en de lector.
 
@@ -183,14 +183,29 @@ foutmelding, een schermafbeelding van het logvenster.
 
 Je vindt deze lijst ook in de app zelf, via de knop **"Info"**.
 
-### Versie 1.3.0 (8 september 2026)
+### Versie 1.3.2 (9 september 2026)
 
-- Kolommen "1e" en "2e" zijn inklapbaar: met de knopjes 1 en 2 linksboven zie
-  je in één klik enkel de eindresultaten.
+- Kolommen "1e" en "2e" zijn inklapbaar en staan bij het openen van het
+  bestand meteen dicht: je ziet dus eerst het overzicht met enkel de
+  eindresultaten. Met de plusjes open je één vak, met het knopje 2 linksboven
+  open je alles.
 - Elk tabblad is gesorteerd van hoog naar laag op "Resultaat %" (en op het
   gemiddelde eindpunt waar de PDF geen percentage geeft).
 - De filterknoppen staan standaard aan op alle tabbladen.
 - De kolomkop toont voortaan de vakcode én de vaknaam.
+- Opgelost: in de rapporten van het niet-diplomajaar werden punten soms in de
+  verkeerde kolom gezet wanneer het aantal studiepunten ontbrak. De punten
+  worden nu toegewezen op basis van hun plaats in de PDF, zodat 1e en 2de zit
+  altijd correct uit elkaar gehouden worden.
+- Opgelost: op vervolgpagina's zonder kopregel viel de app terug op de oude,
+  foutgevoelige herkenning. De kolomposities worden nu onthouden voor het hele
+  rapport.
+- Opgelost: een herkansing waarbij de student hetzelfde punt haalde, bleef
+  onzichtbaar in de kolom "2e". Een tweede zit wordt nu herkend aan de
+  examenperiode (bv. S01 in juni tegenover Z02 in september), niet enkel aan
+  een gewijzigd punt.
+- Tabbladen krijgen de drie kolommen enkel wanneer er voor die groep effectief
+  een eerste én een tweede zit is; anders blijft de smalle opmaak behouden.
 
 ### Versie 1.2.0 (8 september 2026)
 

@@ -13,8 +13,10 @@ ORGANISATION = "Universiteit Antwerpen - Faculteit Geneeskunde en Gezondheidswet
 # Nieuwste versie steeds bovenaan.
 VERSION_HISTORY = [
     ("1.3.2", "9 september 2026", [
-        "Kolommen '1e' en '2e' zijn nu inklapbaar: met de knopjes 1 en 2 "
-        "linksboven in Excel zie je in één klik enkel de eindresultaten.",
+        "Kolommen '1e' en '2e' zijn inklapbaar en staan bij het openen van het "
+        "bestand meteen dicht: je ziet dus eerst het overzicht met enkel de "
+        "eindresultaten. Met de plusjes open je één vak, met het knopje 2 "
+        "linksboven open je alles.",
         "Elk tabblad is gesorteerd van hoog naar laag op 'Resultaat %' "
         "(en op het gemiddelde eindpunt waar de PDF geen percentage geeft).",
         "De filterknoppen staan standaard aan op alle tabbladen, zodat je "

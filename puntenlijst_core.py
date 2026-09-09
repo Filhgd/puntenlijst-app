@@ -1017,15 +1017,16 @@ def groepeer_zitkolommen(ws, col):
     """
     Maak de kolommen '1e' en '2e' van één vak inklapbaar.
 
-    De kolom 'eind' blijft altijd zichtbaar. In Excel verschijnen bovenaan
-    plus- en minknopjes; met de knopjes '1' en '2' linksboven klap je in één
-    keer alle vakken in of uit, zodat je enkel de eindresultaten ziet.
+    Het bestand opent met deze kolommen INGEKLAPT, zodat je meteen het
+    overzicht van de eindresultaten ziet. Met de plusjes boven de kolommen
+    open je één vak; met het knopje '2' linksboven klap je alles in één keer
+    open (en met '1' weer dicht). De kolom 'eind' blijft altijd zichtbaar.
     """
     try:
         ws.sheet_properties.outlinePr.summaryRight = True
         ws.column_dimensions.group(
             get_column_letter(col), get_column_letter(col + 1),
-            outline_level=1, hidden=False,
+            outline_level=1, hidden=True,
         )
     except Exception:
         pass
