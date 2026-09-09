@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Versie-, ontwikkelaars- en wijzigingsinformatie van de Puntenlijst-generator."""
 
-__version__ = "1.3.2"
+__version__ = "1.4.0"
 
 APP_NAME = "Puntenlijst-generator"
 DEVELOPER = "Filip Haegdorens"
@@ -12,6 +12,27 @@ ORGANISATION = "Universiteit Antwerpen - Faculteit Geneeskunde en Gezondheidswet
 # Laat de datum leeg ("") als je die niet wil tonen.
 # Nieuwste versie steeds bovenaan.
 VERSION_HISTORY = [
+    ("1.4.0", "9 september 2026", [
+        "De vakken staan nu altijd in dezelfde, officiële volgorde, volgens "
+        "het overzicht van de studiegidsnummers. Zo zien twee puntenlijsten "
+        "er steeds hetzelfde uit.",
+        "Nieuwe kopregel bovenaan met de module ('Wetenschappelijk onderzoek', "
+        "'Klinische vorming', 'Gemeenschappelijke stam', de afstudeerrichting, "
+        "...) die de bijhorende vakkolommen overspant.",
+        "De kolomkop toont de afkorting, de vakcode en de vaknaam, "
+        "bijvoorbeeld 'SWO1 - 5004GENVEV - Beginselen van onderzoeksmethodologie'.",
+        "Vakken die niet in het overzicht staan (een andere opleiding, of een "
+        "vak uit een vorig programma) gaan niet verloren: die komen achteraan "
+        "onder de module 'Overige opleidingsonderdelen'.",
+        "Vakken worden ook herkend aan hun officiële naam, zodat ze ook "
+        "kloppen wanneer er voor die richting geen deliberatielijst is "
+        "meegegeven.",
+        "Het tabblad Legende toont nu ook de afkorting en de module, in "
+        "dezelfde volgorde als de kolommen.",
+        "Opgelost: afgekapte vaknamen werden bij elke student opnieuw "
+        "aangevuld, waardoor het laatste stuk van de naam tientallen keren "
+        "herhaald werd in de kolomkop.",
+    ]),
     ("1.3.2", "9 september 2026", [
         "Kolommen '1e' en '2e' zijn inklapbaar en staan bij het openen van het "
         "bestand meteen dicht: je ziet dus eerst het overzicht met enkel de "

@@ -83,7 +83,8 @@ behouden: die lijst bevat immers al alle vakken met hun definitieve punt.
 - Tabblad **Controle**: per student wordt nagekeken of het aantal gevonden
   vakken en tekorten klopt met wat in de PDF staat. Staat er ergens
   "CONTROLEER", kijk die student dan even na.
-- Tabblad **Legende**: alle vakcodes met vaknaam, studiepunten en lector.
+- Tabblad **Legende**: alle vakken met afkorting, vakcode, vaknaam, module,
+  studiepunten en lector, in dezelfde volgorde als de kolommen.
 
 ### Sorteren, filteren en kolommen verbergen
 
@@ -97,8 +98,25 @@ behouden: die lijst bevat immers al alle vakken met hun definitieve punt.
   eindresultaten. Klik op een **plusje** boven een kolom om dat ene vak open
   te klappen, of gebruik de knopjes **1** en **2** linksboven het werkblad:
   **2** klapt alles open, **1** klapt alles weer dicht.
-- Bovenaan elke vakkolom staat de **vakcode én de vaknaam**. Beweeg met de muis
-  over de kop voor de studiepunten en de lector.
+- Bovenaan elke vakkolom staat de **afkorting, de vakcode en de vaknaam**,
+  bijvoorbeeld "SWO1 - 5004GENVEV - Beginselen van onderzoeksmethodologie".
+  Beweeg met de muis over de kop voor de studiepunten en de lector.
+
+### Vaste volgorde van de vakken
+
+De kolommen staan altijd in dezelfde, officiële volgorde, volgens het overzicht
+van de studiegidsnummers. Twee puntenlijsten zien er dus steeds hetzelfde uit,
+ongeacht welke PDF's je aanlevert of in welke volgorde.
+
+Bovenaan loopt een **kopregel met de module** over de bijbehorende kolommen:
+voor het schakeljaar zijn dat "Management en innovatie", "Klinische vorming",
+"Academische vorming" en "Wetenschappelijk onderzoek"; voor de master de
+"Gemeenschappelijke stam", de vakken die alle richtingen delen, en daarna de
+vakken per afstudeerrichting.
+
+Komt een vak in de PDF niet voor in dat overzicht, bijvoorbeeld van een andere
+opleiding of uit een vorig programma, dan **gaan die punten niet verloren**: het
+vak komt achteraan te staan onder de module "Overige opleidingsonderdelen".
 
 ---
 
@@ -182,6 +200,21 @@ foutmelding, een schermafbeelding van het logvenster.
 ## 7. Versiegeschiedenis
 
 Je vindt deze lijst ook in de app zelf, via de knop **"Info"**.
+
+### Versie 1.4.0 (9 september 2026)
+
+- De vakken staan nu altijd in dezelfde, officiële volgorde, volgens het
+  overzicht van de studiegidsnummers.
+- Nieuwe kopregel bovenaan met de module, die de bijhorende vakkolommen
+  overspant.
+- De kolomkop toont de afkorting, de vakcode en de vaknaam.
+- Vakken die niet in het overzicht staan, gaan niet verloren: die komen
+  achteraan onder "Overige opleidingsonderdelen".
+- Vakken worden ook herkend aan hun officiële naam, zodat ze ook kloppen
+  wanneer er voor die richting geen deliberatielijst is meegegeven.
+- Het tabblad Legende toont nu ook de afkorting en de module.
+- Opgelost: afgekapte vaknamen werden bij elke student opnieuw aangevuld,
+  waardoor het laatste stuk van de naam tientallen keren herhaald werd.
 
 ### Versie 1.3.2 (9 september 2026)
 
