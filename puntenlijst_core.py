@@ -149,6 +149,7 @@ def parse_pdf(path, courses_registry, problems):
                         "plancode": "",
                         "planname": "",
                         "grades": {},
+                        "periods": {},
                         "resultaat": "",
                         "beoordeling": "",
                         "lijst": "",
@@ -188,6 +189,11 @@ def parse_pdf(path, courses_registry, problems):
                             naam = mh.group("name").strip()
                             sp = mh.group("sp").replace(",", ".")
                             lect = mh.group("lect").strip()
+                            # Examenperiode (S01, S02, S12, Z02, ...). Wisselt
+                            # die tussen juni en september, dan is het vak in
+                            # de tweede zit opnieuw afgelegd - ook als het punt
+                            # gelijk bleef.
+                            cur["periods"][code] = mh.group("period")
                         else:
                             parts = head.split(maxsplit=1)
                             naam = parts[1].strip() if len(parts) > 1 else ""
@@ -323,8 +329,14 @@ def merge_zit_students(students, problems):
             g1 = r1["grades"].get(code) if r1 else None
             g2 = r2["grades"].get(code) if r2 else None
             if g1 and g2:
-                # Alleen tonen als tweede zit wanneer het punt gewijzigd is.
-                if g2[0] != g1[0]:
+                # Het vak telt als herkanst wanneer het punt wijzigde OF de
+                # examenperiode wijzigde (bv. S01 in juni -> Z02 in september).
+                # Dat tweede is nodig omdat een herkansing met hetzelfde punt
+                # anders onzichtbaar zou blijven.
+                p1 = (r1.get("periods") or {}).get(code, "")
+                p2 = (r2.get("periods") or {}).get(code, "")
+                herkanst = (g2[0] != g1[0]) or (p1 and p2 and p1 != p2)
+                if herkanst:
                     d1, v1, d2, v2 = g1[0], g1[1], g2[0], g2[1]
                 else:
                     d1, v1, d2, v2 = g1[0], g1[1], "", None

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Versie-, ontwikkelaars- en wijzigingsinformatie van de Puntenlijst-generator."""
 
-__version__ = "1.3.0"
+__version__ = "1.3.2"
 
 APP_NAME = "Puntenlijst-generator"
 DEVELOPER = "Filip Haegdorens"
@@ -12,7 +12,7 @@ ORGANISATION = "Universiteit Antwerpen - Faculteit Geneeskunde en Gezondheidswet
 # Laat de datum leeg ("") als je die niet wil tonen.
 # Nieuwste versie steeds bovenaan.
 VERSION_HISTORY = [
-    ("1.3.0", "8 september 2026", [
+    ("1.3.2", "9 september 2026", [
         "Kolommen '1e' en '2e' zijn nu inklapbaar: met de knopjes 1 en 2 "
         "linksboven in Excel zie je in één klik enkel de eindresultaten.",
         "Elk tabblad is gesorteerd van hoog naar laag op 'Resultaat %' "
@@ -30,6 +30,10 @@ VERSION_HISTORY = [
         "Tabbladen krijgen de drie kolommen enkel wanneer er voor die groep "
         "effectief een eerste én een tweede zit is; anders blijft de smalle "
         "opmaak behouden.",
+        "Opgelost: een herkansing waarbij de student hetzelfde punt haalde, "
+        "bleef onzichtbaar in de kolom '2e'. Een tweede zit wordt nu herkend "
+        "aan de examenperiode (bv. S01 in juni tegenover Z02 in september), "
+        "niet enkel aan een gewijzigd punt.",
     ]),
     ("1.2.0", "8 september 2026", [
         "Ondersteuning voor 'Rapport Vaststelling Punten' (niet-diplomajaar): "
