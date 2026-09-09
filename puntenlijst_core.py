@@ -313,12 +313,17 @@ def merge_zit_students(students, problems):
     Geeft een lijst samengevoegde studentdicts terug met per vak
     {"d1","v1","d2","v2"} in de sleutel "grades2".
     """
+    # Samenvoegen op studentnummer ÉN opleiding. Een student kan in hetzelfde
+    # academiejaar in twee programma's ingeschreven zijn (bv. schakeljaar en
+    # masterjaar). Dat zijn twee aparte dossiers, elk met eigen vakken en
+    # eigen controlegetallen; die mogen niet op één rij belanden.
     per_nr = {}
     for s in students:
-        per_nr.setdefault(s["nr"], []).append(s)
+        sleutel = (s["nr"], s.get("plancode") or s.get("track") or "")
+        per_nr.setdefault(sleutel, []).append(s)
 
     merged = []
-    for nr, recs in per_nr.items():
+    for (nr, _opleiding), recs in per_nr.items():
         zit1 = [r for r in recs if r.get("zit", 1) == 1]
         zit2 = [r for r in recs if r.get("zit", 1) == 2]
         if len(zit1) > 1 or len(zit2) > 1:

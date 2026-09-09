@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Versie-, ontwikkelaars- en wijzigingsinformatie van de Puntenlijst-generator."""
 
-__version__ = "1.4.0"
+__version__ = "1.4.1"
 
 APP_NAME = "Puntenlijst-generator"
 DEVELOPER = "Filip Haegdorens"
@@ -12,6 +12,15 @@ ORGANISATION = "Universiteit Antwerpen - Faculteit Geneeskunde en Gezondheidswet
 # Laat de datum leeg ("") als je die niet wil tonen.
 # Nieuwste versie steeds bovenaan.
 VERSION_HISTORY = [
+    ("1.4.1", "9 september 2026", [
+        "Opgelost: een student die in hetzelfde academiejaar in twee "
+        "programma's is ingeschreven (bijvoorbeeld schakeljaar én masterjaar) "
+        "werd tot één rij samengevoegd, waardoor de vakken van beide "
+        "opleidingen bij elkaar kwamen en de controle een verschil meldde. "
+        "Inschrijvingen worden nu per opleiding apart gehouden: de student "
+        "verschijnt op beide tabbladen, elk met de eigen vakken en de eigen "
+        "controlegetallen.",
+    ]),
     ("1.4.0", "9 september 2026", [
         "De vakken staan nu altijd in dezelfde, officiële volgorde, volgens "
         "het overzicht van de studiegidsnummers. Zo zien twee puntenlijsten "

@@ -175,6 +175,12 @@ Controleer of er PDF-bestanden in de map zitten. De app verwerkt alleen
 Waarschijnlijk zijn dit geen deliberatie-PDF's, of zijn het gescande
 afbeeldingen in plaats van originele PDF-exports.
 
+**Een student staat twee keer in het bestand.**
+Dat klopt wanneer zij in hetzelfde academiejaar in twee programma's is
+ingeschreven, bijvoorbeeld het schakeljaar en het masterjaar. Elke
+inschrijving krijgt een eigen rij op het tabblad van die opleiding, met de
+eigen vakken en de eigen controle.
+
 **Het tabblad Controle toont "CONTROLEER" bij een student.**
 Het aantal gevonden vakken of tekorten wijkt af van wat de PDF vermeldt.
 Kijk die student handmatig na in de originele PDF. De kolom "Detail" zegt
@@ -200,6 +206,13 @@ foutmelding, een schermafbeelding van het logvenster.
 ## 7. Versiegeschiedenis
 
 Je vindt deze lijst ook in de app zelf, via de knop **"Info"**.
+
+### Versie 1.4.1 (9 september 2026)
+
+- Opgelost: een student die in hetzelfde academiejaar in twee programma's is
+  ingeschreven (bijvoorbeeld schakeljaar én masterjaar) werd tot één rij
+  samengevoegd, waardoor de vakken van beide opleidingen bij elkaar kwamen.
+  Inschrijvingen worden nu per opleiding apart gehouden.
 
 ### Versie 1.4.0 (9 september 2026)
 
