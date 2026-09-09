@@ -24,6 +24,12 @@ VERSION_HISTORY = [
         "in de verkeerde kolom gezet wanneer het aantal studiepunten ontbrak. "
         "De punten worden nu toegewezen op basis van hun plaats in de PDF, "
         "zodat 1e en 2de zit altijd correct uit elkaar gehouden worden.",
+        "Opgelost: op vervolgpagina's zonder kopregel viel de app terug op de "
+        "oude, foutgevoelige herkenning. De kolomposities worden nu onthouden "
+        "voor het hele rapport.",
+        "Tabbladen krijgen de drie kolommen enkel wanneer er voor die groep "
+        "effectief een eerste én een tweede zit is; anders blijft de smalle "
+        "opmaak behouden.",
     ]),
     ("1.2.0", "8 september 2026", [
         "Ondersteuning voor 'Rapport Vaststelling Punten' (niet-diplomajaar): "

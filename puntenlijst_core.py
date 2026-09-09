@@ -532,8 +532,20 @@ def parse_vaststelling_pdf(path, courses_registry, problems):
     track_kort = ""
 
     with pdfplumber.open(path) as pdf:
+        # De kolomposities zijn in het hele rapport dezelfde. Loopt de
+        # vakkenlijst van een student door op een volgende pagina, dan staat
+        # daar geen kopregel meer; daarom onthouden we de laatst gevonden
+        # posities en gebruiken we die verder.
+        laatste_grenzen = None
         for page in pdf.pages:
-            grenzen = _kolomgrenzen(page)
+            if laatste_grenzen is None:
+                for p in pdf.pages:
+                    laatste_grenzen = _kolomgrenzen(p)
+                    if laatste_grenzen:
+                        break
+            grenzen = _kolomgrenzen(page) or laatste_grenzen
+            if grenzen:
+                laatste_grenzen = grenzen
             for line, ws in _regels_met_posities(page):
                 line = line.strip()
                 if not line or "Page " in line or line.startswith("Opleidingsonderdeel"):
@@ -585,6 +597,16 @@ def parse_vaststelling_pdf(path, courses_registry, problems):
                     if mc:
                         velden = (mc.group("name"), mc.group("sp"),
                                   mc.group("g1"), mc.group("g2") or "")
+                        # Terugval op tekstherkenning: dan is niet met zekerheid
+                        # te zeggen bij welke zit een enkel punt hoort.
+                        if not mc.group("g2"):
+                            problems.append(
+                                f"{os.path.basename(path)}: bij student "
+                                f"{cur['nr']} {cur['naam']} kon de kolom van "
+                                f"'{line[:45]}...' niet op positie bepaald "
+                                f"worden; punt toegekend aan de eerste zit. "
+                                f"CONTROLEER dit vak."
+                            )
                 if velden is not None:
                     ruwe_naam, sp_txt, g1_txt, g2_txt = velden
                     key, naam = match_course_key(ruwe_naam, courses_registry)
@@ -1209,7 +1231,18 @@ def generate(pdf_paths, out_dir=None, log=print):
     def group_sort_key(track):
         return (0 if track.startswith("Master") else 1 if track.startswith("Schakel") else 2, track)
 
-    bouw = build_matrix_sheet_dual if dual else build_matrix_sheet
+    def bouw(ws, lijst, registry, show_track=False):
+        """
+        Kies per tabblad de juiste opmaak: drie kolommen per vak wanneer er
+        voor deze groep effectief een eerste én een tweede zit is, anders de
+        gewone smalle opmaak.
+        """
+        heeft_beide = dual and any("1" in s.get("zitten", "") for s in lijst) \
+            and any("2" in s.get("zitten", "") for s in lijst)
+        if heeft_beide:
+            build_matrix_sheet_dual(ws, lijst, registry, show_track=show_track)
+        else:
+            build_matrix_sheet(ws, lijst, registry, show_track=show_track)
 
     master_students = [s for s in all_students if s["status_jaar"] == "Masterjaar"]
     if master_students:
